@@ -18,75 +18,75 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now build ONLY the authenticated application shell and navigation.
+Now implement the complete Category Management feature.
 
-Do not implement full transaction logic, budget calculations, recurring transaction logic, or dashboard analytics yet.
+The primary requirement is:
 
-The authenticated application should have:
+ADDING A NEW CATEGORY MUST NOT REQUIRE ANY CODE CHANGES TO THE DASHBOARD, TRANSACTIONS, BUDGETS, OR OTHER FEATURES.
 
-1. Sidebar/navigation
-2. Top header
-3. Main content area
-4. Responsive mobile navigation
-5. Logout action
-6. Current user/session awareness
+Categories are database-driven.
 
-MAIN NAVIGATION:
+FEATURES:
 
-- Dashboard
-- Transactions
-- Budgets
-- Categories
-- Recurring Transactions
+1. List categories
+2. Create category
+3. Edit category
+4. Activate/deactivate category
+5. Delete category where safe
+6. Filter by income/expense/both
+7. Prevent duplicate category names for the same user
 
-The navigation should be extensible so additional sections can be added later.
+CATEGORY TYPES:
 
-Use:
+- INCOME
+- EXPENSE
+- BOTH
 
-- Tailwind CSS
-- Lucide React
-- reusable components
-- accessible buttons/links
-- responsive design
+The UI should clearly distinguish active and inactive categories.
 
-Create reusable components under:
+IMPORTANT DELETE RULE:
 
-src/components/layout/
+If a category is already referenced by transactions or budgets, do not blindly delete it.
 
-For example:
+Instead:
 
-- Sidebar
-- MobileNav
-- Header
-- PageHeader
-- NavigationItem
+- either prevent deletion and explain why
+- or recommend deactivation
 
-DESIGN:
+Do not cause orphaned financial records.
 
-The application should feel like a modern personal finance dashboard rather than an Excel spreadsheet.
+SERVER ACTIONS:
 
-Use cards, tables, badges, dropdowns, dialogs and responsive layouts where appropriate.
+Create dedicated server actions for:
 
-Do not overuse colors.
+- createCategory
+- updateCategory
+- toggleCategoryStatus
+- deleteCategory if safe
 
-Use semantic visual states for:
+Validate all inputs with Zod.
 
-- income
-- expense
-- positive savings
-- warning
-- budget exceeded
+DATABASE:
 
-Do not hardcode fake financial values.
+All category operations must be scoped to the authenticated user.
 
-Pages can contain temporary empty states/placeholders until their respective functionality is implemented.
+UI:
 
-After implementation:
+Create a professional category management page.
 
-- verify all navigation links
-- verify protected routes
-- verify logout
-- verify mobile responsiveness
-- run lint/typecheck/build
+Include:
+
+- category list/table
+- add category button
+- edit action
+- activate/deactivate action
+- appropriate confirmation dialog
+- empty state
+
+Do not hardcode the initial category list into React components.
+
+The database should be the source of truth.
+
+After implementation, verify that creating a new category immediately makes it available wherever categories are selected.
 
 STOP.
