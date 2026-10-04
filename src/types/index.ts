@@ -4,6 +4,7 @@ import {
   Transaction,
   Budget,
   RecurringTransaction,
+  TransactionTemplate,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -15,6 +16,7 @@ export type {
   Transaction,
   Budget,
   RecurringTransaction,
+  TransactionTemplate,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -36,5 +38,9 @@ export type BudgetWithCategory = Budget & {
 };
 
 export type RecurringTransactionWithCategory = RecurringTransaction & {
+  category: Category;
+};
+
+export type TransactionTemplateWithCategory = TransactionTemplate & {
   category: Category;
 };

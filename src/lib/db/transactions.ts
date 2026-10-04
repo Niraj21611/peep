@@ -8,6 +8,7 @@ export interface CreateTransactionInput {
   type: TransactionType;
   categoryId: string;
   amount: number;
+  amountExpression?: string;
   notes?: string;
 }
 
@@ -16,6 +17,7 @@ export interface UpdateTransactionInput {
   type?: TransactionType;
   categoryId?: string;
   amount?: number;
+  amountExpression?: string;
   notes?: string;
 }
 
@@ -148,6 +150,7 @@ export async function createTransaction(input: CreateTransactionInput) {
       type: input.type,
       categoryId: input.categoryId,
       amount: roundMoney(input.amount),
+      amountExpression: input.amountExpression?.trim() || null,
       notes: input.notes?.trim(),
     },
     include: { category: true },
@@ -184,6 +187,7 @@ export async function updateTransaction(
     data: {
       ...data,
       ...(data.amount !== undefined ? { amount: roundMoney(data.amount) } : {}),
+      ...(data.amountExpression !== undefined ? { amountExpression: data.amountExpression?.trim() || null } : {}),
     },
     include: { category: true },
   });

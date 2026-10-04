@@ -33,22 +33,37 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const categoryId = params.categoryId;
   const search = params.search;
 
+  // Default to current month if no date params are provided
+  const now = new Date();
+  const currentMonthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+  const currentMonthEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
+
   let startDate: Date | undefined = undefined;
+  let startDateStr: string | undefined = undefined;
   if (params.startDate) {
     const d = new Date(params.startDate);
     if (!isNaN(d.getTime())) {
       d.setHours(0, 0, 0, 0);
       startDate = d;
+      startDateStr = params.startDate;
     }
+  } else {
+    startDate = currentMonthStart;
+    startDateStr = `${currentMonthStart.getUTCFullYear()}-${String(currentMonthStart.getUTCMonth() + 1).padStart(2, "0")}-${String(currentMonthStart.getUTCDate()).padStart(2, "0")}`;
   }
 
   let endDate: Date | undefined = undefined;
+  let endDateStr: string | undefined = undefined;
   if (params.endDate) {
     const d = new Date(params.endDate);
     if (!isNaN(d.getTime())) {
       d.setHours(23, 59, 59, 999);
       endDate = d;
+      endDateStr = params.endDate;
     }
+  } else {
+    endDate = currentMonthEnd;
+    endDateStr = `${currentMonthEnd.getUTCFullYear()}-${String(currentMonthEnd.getUTCMonth() + 1).padStart(2, "0")}-${String(currentMonthEnd.getUTCDate()).padStart(2, "0")}`;
   }
 
   const sortBy = params.sortBy === "amount" ? "amount" : "date";
@@ -81,6 +96,8 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         summary={transactionsData.summary}
         initialSortBy={sortBy}
         initialSortOrder={sortOrder}
+        defaultStartDate={startDateStr}
+        defaultEndDate={endDateStr}
       />
     </div>
   );

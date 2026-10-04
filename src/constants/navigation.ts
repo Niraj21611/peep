@@ -12,6 +12,12 @@ export const MAIN_NAV_ITEMS = [
     description: "Manage income, expenses, and ledger entries",
   },
   {
+    title: "Templates",
+    href: "/templates",
+    icon: "Copy",
+    description: "Manage quick transaction templates and amount chunks",
+  },
+  {
     title: "Budgets",
     href: "/budgets",
     icon: "PieChart",

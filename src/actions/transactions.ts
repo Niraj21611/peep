@@ -20,14 +20,18 @@ export async function createTransactionAction(
     const rawDate = formData.get("date");
     const rawType = formData.get("type");
     const rawCategoryId = formData.get("categoryId");
-    const rawAmount = formData.get("amount");
+    const rawAmountInput = formData.get("amountInput") || formData.get("amount");
+    const rawAmountExpression = formData.get("amountExpression");
     const rawNotes = formData.get("notes");
+    const saveAsTemplate = formData.get("saveAsTemplate") === "true";
+    const templateName = formData.get("templateName")?.toString();
 
     const validation = transactionSchema.safeParse({
       date: rawDate,
       type: rawType,
       categoryId: rawCategoryId,
-      amount: rawAmount,
+      amountInput: rawAmountInput,
+      amountExpression: rawAmountExpression,
       notes: rawNotes,
     });
 
@@ -45,8 +49,24 @@ export async function createTransactionAction(
       type: validation.data.type,
       categoryId: validation.data.categoryId,
       amount: validation.data.amount,
+      amountExpression: validation.data.amountExpression,
       notes: validation.data.notes,
     });
+
+    // If user requested to save this transaction as a template
+    if (saveAsTemplate && templateName) {
+      const { createTemplate } = await import("@/lib/db/templates");
+      await createTemplate({
+        userId: user.id,
+        name: templateName,
+        type: validation.data.type,
+        categoryId: validation.data.categoryId,
+        amount: validation.data.amount,
+        amountExpression: validation.data.amountExpression,
+        notes: validation.data.notes,
+      });
+      revalidatePath("/templates");
+    }
 
     revalidatePath("/transactions");
     revalidatePath("/dashboard");
@@ -54,7 +74,9 @@ export async function createTransactionAction(
 
     return {
       success: true,
-      message: "Transaction added successfully.",
+      message: saveAsTemplate && templateName 
+        ? "Transaction added and template saved successfully." 
+        : "Transaction added successfully.",
       data: transaction,
     };
   } catch (error) {
@@ -76,14 +98,16 @@ export async function updateTransactionAction(
     const rawDate = formData.get("date");
     const rawType = formData.get("type");
     const rawCategoryId = formData.get("categoryId");
-    const rawAmount = formData.get("amount");
+    const rawAmountInput = formData.get("amountInput") || formData.get("amount");
+    const rawAmountExpression = formData.get("amountExpression");
     const rawNotes = formData.get("notes");
 
     const validation = transactionSchema.safeParse({
       date: rawDate,
       type: rawType,
       categoryId: rawCategoryId,
-      amount: rawAmount,
+      amountInput: rawAmountInput,
+      amountExpression: rawAmountExpression,
       notes: rawNotes,
     });
 
@@ -100,6 +124,7 @@ export async function updateTransactionAction(
       type: validation.data.type,
       categoryId: validation.data.categoryId,
       amount: validation.data.amount,
+      amountExpression: validation.data.amountExpression,
       notes: validation.data.notes,
     });
 

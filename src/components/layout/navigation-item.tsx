@@ -8,6 +8,7 @@ import {
   PieChart,
   Tags,
   Repeat,
+  Copy,
 } from "lucide-react";
 
 import type { NavItem } from "@/constants/navigation";
@@ -19,6 +20,7 @@ const iconMap = {
   PieChart,
   Tags,
   Repeat,
+  Copy,
 };
 
 interface NavigationItemProps {

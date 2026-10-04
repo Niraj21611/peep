@@ -2,12 +2,13 @@ import { z } from "zod";
 import { TransactionType } from "@prisma/client";
 import { evaluateAmountChunks } from "@/lib/utils/math-eval";
 
-export const transactionSchema = z
+export const templateSchema = z
   .object({
-    date: z.coerce.date({
-      required_error: "Transaction date is required",
-      invalid_type_error: "Invalid transaction date format",
-    }),
+    name: z
+      .string()
+      .min(1, "Template name is required")
+      .max(100, "Template name cannot exceed 100 characters")
+      .transform((val) => val.trim()),
     type: z.nativeEnum(TransactionType, {
       errorMap: () => ({ message: "Transaction type must be INCOME or EXPENSE" }),
     }),
@@ -33,7 +34,7 @@ export const transactionSchema = z
     }
 
     return {
-      date: data.date,
+      name: data.name,
       type: data.type,
       categoryId: data.categoryId,
       amount: evalResult.value,
@@ -44,4 +45,4 @@ export const transactionSchema = z
     };
   });
 
-export type TransactionInput = z.infer<typeof transactionSchema>;
+export type TemplateInput = z.infer<typeof templateSchema>;

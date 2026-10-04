@@ -40,6 +40,7 @@ model User {
   transactions          Transaction[]
   budgets               Budget[]
   recurringTransactions RecurringTransaction[]
+  templates             TransactionTemplate[]
 }
 
 model Category {
@@ -55,6 +56,7 @@ model Category {
   transactions          Transaction[]
   budgets               Budget[]
   recurringTransactions RecurringTransaction[]
+  templates             TransactionTemplate[]
 
   @@unique([userId, name])
   @@index([userId, type])
@@ -70,6 +72,7 @@ model Transaction {
   categoryId             String                @db.ObjectId
   category               Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   amount                 Float
+  amountExpression       String?               // Optional chunk expression e.g. "5 + 12 - 2" or "5, 12"
   notes                  String?
   recurringTransactionId String?               @db.ObjectId
   recurringTransaction   RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
@@ -118,5 +121,23 @@ model RecurringTransaction {
   generatedTransactions Transaction[]
 
   @@index([userId, active])
+  @@index([userId, categoryId])
+}
+
+model TransactionTemplate {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String          @db.ObjectId
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  type             TransactionType
+  categoryId       String          @db.ObjectId
+  category         Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount           Float
+  amountExpression String?         // Chunk expression like "5 + 12 - 2"
+  notes            String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([userId, name])
   @@index([userId, categoryId])
 }

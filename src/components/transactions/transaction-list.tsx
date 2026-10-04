@@ -54,6 +54,8 @@ interface TransactionListProps {
     totalExpense: number;
     netBalance: number;
   };
+  defaultStartDate?: string;
+  defaultEndDate?: string;
 }
 
 export function TransactionList({
@@ -66,17 +68,19 @@ export function TransactionList({
   initialSortBy = "date",
   initialSortOrder = "desc",
   summary,
+  defaultStartDate,
+  defaultEndDate,
 }: TransactionListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // State for Filters
+  // State for Filters — use URL params if present, else fall back to server-computed defaults
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "ALL");
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get("categoryId") || "ALL");
-  const [startDate, setStartDate] = useState(searchParams.get("startDate") || "");
-  const [endDate, setEndDate] = useState(searchParams.get("endDate") || "");
+  const [startDate, setStartDate] = useState(searchParams.get("startDate") || defaultStartDate || "");
+  const [endDate, setEndDate] = useState(searchParams.get("endDate") || defaultEndDate || "");
 
   // Modal Dialog States
   const [formDialogOpen, setFormDialogOpen] = useState(false);
@@ -154,8 +158,8 @@ export function TransactionList({
     setSearch("");
     setTypeFilter("ALL");
     setCategoryFilter("ALL");
-    setStartDate("");
-    setEndDate("");
+    setStartDate(defaultStartDate || "");
+    setEndDate(defaultEndDate || "");
     startTransition(() => {
       router.push("/transactions");
     });
@@ -170,7 +174,11 @@ export function TransactionList({
   };
 
   const hasActiveFilters =
-    search || typeFilter !== "ALL" || categoryFilter !== "ALL" || startDate || endDate;
+    Boolean(search) ||
+    typeFilter !== "ALL" ||
+    categoryFilter !== "ALL" ||
+    (Boolean(startDate) && startDate !== defaultStartDate) ||
+    (Boolean(endDate) && endDate !== defaultEndDate);
 
   // Pagination calculations
   const fromEntry = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -201,7 +209,7 @@ export function TransactionList({
         <Card className="p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800 border-l-[4px] border-l-emerald-500">
           <div className="flex items-start justify-between">
             <h3 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Filtered Income
+              Income
             </h3>
             <div className="p-1 rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
               <ArrowUpRight className="h-3.5 w-3.5" />
@@ -219,7 +227,7 @@ export function TransactionList({
         <Card className="p-3 sm:p-4 rounded-xl shadow-xs border border-slate-200 dark:border-slate-800 border-l-[4px] border-l-rose-500">
           <div className="flex items-start justify-between">
             <h3 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Filtered Expenses
+              Expenses
             </h3>
             <div className="p-1 rounded-md bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
               <ArrowDownLeft className="h-3.5 w-3.5" />
@@ -256,23 +264,24 @@ export function TransactionList({
         </Card>
       </div>
 
-      {/* Filters Bar - Aligned perfectly */}
-      <div className="flex flex-col xl:flex-row xl:items-center gap-3 bg-white dark:bg-slate-900 p-1 rounded-lg">
+      {/* Filters Bar - Shifted to the right utilizing full width */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs w-full">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative w-full lg:w-[220px] shrink-0">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search notes or category..."
+            placeholder="Search..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9 h-9"
+            className="pl-9 h-9 text-sm"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Filter controls shifted right using justify-end */}
+        <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2.5 w-full lg:w-auto">
           {/* Type Filter */}
           <Select value={typeFilter} onValueChange={handleTypeChange}>
-            <SelectTrigger className="w-[130px] h-9">
+            <SelectTrigger className="w-[125px] h-9 text-sm">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -284,7 +293,7 @@ export function TransactionList({
 
           {/* Category Filter */}
           <Select value={categoryFilter} onValueChange={handleCategoryChange}>
-            <SelectTrigger className="w-[150px] h-9">
+            <SelectTrigger className="w-[145px] h-9 text-sm">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
@@ -297,21 +306,21 @@ export function TransactionList({
             </SelectContent>
           </Select>
 
-          {/* Date Filters aligned next to dropdowns */}
-          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <span className="font-medium ml-1">From:</span>
+          {/* Date Filters */}
+          <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-medium text-xs text-slate-500">From:</span>
             <Input
               type="date"
               value={startDate}
               onChange={(e) => handleStartDateChange(e.target.value)}
-              className="h-9 w-[130px] px-2 text-sm"
+              className="h-9 w-[145px] px-2 text-xs"
             />
-            <span className="font-medium ml-1">To:</span>
+            <span className="font-medium text-xs text-slate-500">To:</span>
             <Input
               type="date"
               value={endDate}
               onChange={(e) => handleEndDateChange(e.target.value)}
-              className="h-9 w-[130px] px-2 text-sm"
+              className="h-9 w-[145px] px-2 text-xs"
             />
           </div>
           
@@ -320,7 +329,7 @@ export function TransactionList({
               variant="ghost"
               size="sm"
               onClick={handleClearFilters}
-              className="h-9 gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+              className="h-9 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
             >
               <FilterX className="h-3.5 w-3.5" /> Clear
             </Button>
@@ -411,15 +420,22 @@ export function TransactionList({
                         {tx.category.name}
                       </td>
                       <td className="py-3.5 px-4 font-bold">
-                        <span
-                          className={
-                            tx.type === TransactionType.INCOME
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-rose-600 dark:text-rose-400"
-                          }
-                        >
-                          {tx.type === TransactionType.INCOME ? "+" : "-"} {formatCurrency(tx.amount)}
-                        </span>
+                        <div className="flex flex-col">
+                          <span
+                            className={
+                              tx.type === TransactionType.INCOME
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-rose-600 dark:text-rose-400"
+                            }
+                          >
+                            {tx.type === TransactionType.INCOME ? "+" : "-"} {formatCurrency(tx.amount)}
+                          </span>
+                          {tx.amountExpression && (
+                            <span className="text-[10px] text-muted-foreground font-mono font-normal">
+                              ({tx.amountExpression})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-xs text-slate-500 max-w-[200px] truncate">
                         {tx.notes || "—"}
