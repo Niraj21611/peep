@@ -18,125 +18,137 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement the complete Dashboard.
+Now implement the Recurring Transactions feature.
 
-Use the provided Excel Dashboard screenshot as the functional reference, but build a modern responsive finance dashboard rather than copying the spreadsheet layout.
+This feature is extremely important because it replaces repetitive manual entries from the user's Excel workflow.
 
-The dashboard must calculate everything from the database.
+The user currently has recurring expenses such as a daily commute where the same expense may occur repeatedly.
 
-Do NOT hardcode financial values.
+The system should allow the user to define a recurring transaction rule.
 
-TOP FILTER:
+EXAMPLE:
 
-Provide:
+Name:
+Daily Commute
 
-- Start Date
-- End Date
+Amount:
+77
 
-Default to the current month.
+Type:
+Expense
 
-All dashboard statistics must respond to the selected date range.
+Category:
+Transport
 
-SUMMARY CARDS:
+Frequency:
+Weekdays
+
+Start Date:
+01-Oct-2026
+
+End Date:
+Optional
+
+The system should be able to generate the corresponding actual transactions.
+
+SUPPORTED FREQUENCIES:
+
+- Daily
+- Weekdays
+- Weekly
+- Monthly
+- Yearly
+- Custom
+
+IMPORTANT ARCHITECTURE:
+
+Do not simply insert infinite future transactions.
+
+RecurringTransaction represents the RULE.
+
+Transaction represents an ACTUAL financial event.
+
+Keep these concepts separate.
+
+Each generated transaction should retain a reference to the recurring transaction that generated it where appropriate.
+
+DUPLICATE PROTECTION:
+
+The system must never generate the same recurring occurrence twice.
+
+Design an appropriate uniqueness/idempotency strategy.
+
+USER INTERFACE:
+
+Create a recurring transactions page containing:
+
+- active recurring rules
+- inactive recurring rules
+- add recurring transaction
+- edit
+- activate/deactivate
+- delete
 
 Display:
 
-1. Total Income
-2. Total Expenses
-3. Net Savings
-4. Savings Rate
+Name
+Amount
+Type
+Category
+Frequency
+Next occurrence
+Status
 
-Calculations:
+SERVER-SIDE GENERATION:
 
-Net Savings = Total Income - Total Expenses
+Implement a reusable server-side function that can generate due recurring transactions.
 
-Savings Rate =
-if Total Income > 0:
-Net Savings / Total Income * 100
-otherwise 0
+For example conceptually:
 
-EXPENSE BY CATEGORY:
+generateDueRecurringTransactions()
 
-Display a category breakdown for the selected date range.
+It must:
 
-Use:
+1. Find active recurring rules
+2. Determine due occurrences
+3. Check whether an occurrence already exists
+4. Create missing transactions
+5. Update the recurrence state safely
 
-- category name
-- total expense
+Do not rely on client-side JavaScript timers.
 
-Categories with zero spending can be omitted from the chart.
+The generation mechanism should be designed so that it can later be triggered by:
 
-Create a donut/pie chart using Recharts.
+- application access
+- scheduled job/cron
+- manual "Generate Due Transactions" action
 
-MONTHLY SUMMARY:
+For the initial implementation, provide a safe manual/server-trigger mechanism.
 
-Display monthly:
+Do not introduce an external cron service yet.
 
-- Income
-- Expenses
+IMPORTANT:
 
-for a useful historical period.
+Do not automatically create historical transactions incorrectly.
 
-Create a chart comparing income vs expenses.
+Respect the recurrence start date and optional end date.
 
-The chart should be generated dynamically from transaction data.
-
-ADDITIONAL USEFUL INFORMATION:
-
-Include:
-
-- highest spending category
-- largest transaction
-- transaction count
-- budget overview for the selected month
-
-Do not make the dashboard unnecessarily crowded.
-
-RESPONSIVENESS:
-
-Desktop:
-- summary cards in a row
-- charts arranged efficiently
-
-Mobile:
-- cards stack
-- charts resize
-- tables become scrollable or responsive
-
-PERFORMANCE:
-
-Do not fetch every transaction into the browser just to perform calculations there.
-
-Perform aggregations on the server/database layer where practical.
-
-Create reusable server-side query functions for dashboard statistics.
-
-Keep dashboard calculation logic separate from UI components.
-
-For example:
-
-src/lib/finance/
-
-could contain reusable functions such as:
-
-- getDashboardSummary()
-- getExpensesByCategory()
-- getMonthlySummary()
-- getBudgetSummary()
-
-Do not put complex financial calculations directly inside React components.
+Do not create occurrences after the end date.
 
 After implementation:
 
-- verify date filters
-- verify income calculation
-- verify expense calculation
-- verify savings
-- verify savings rate
-- verify category chart
-- verify monthly chart
-- verify empty states
-- verify responsive layout
-- run lint/typecheck/build
+Test:
+
+- daily
+- weekdays
+- weekly
+- monthly
+- duplicate prevention
+- inactive recurrence
+- start date
+- end date
+- manual generation
+- editing recurrence
+- deleting recurrence
 
 STOP.
