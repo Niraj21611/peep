@@ -1,34 +1,41 @@
 import { requireUser } from "@/lib/auth/session";
+import { getBudgetsWithCalculations } from "@/lib/db/budgets";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, PieChart } from "lucide-react";
+import { BudgetView } from "@/components/budgets/budget-view";
+import { Badge } from "@/components/ui/badge";
 
-export default async function BudgetsPage() {
-  await requireUser();
+interface BudgetsPageProps {
+  searchParams: {
+    month?: string;
+  };
+}
+
+export default async function BudgetsPage({ searchParams }: BudgetsPageProps) {
+  const user = await requireUser();
+
+  // Default to current month "YYYY-MM"
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const targetMonth = searchParams.month || currentMonthStr;
+
+  const { categoryBudgets, summary } = await getBudgetsWithCalculations(user.id, targetMonth);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Monthly Budgets"
-        description="Set category spending limits and track budget utilization in real-time."
+        description="Set category spending targets and track actual expenses in real-time. Categories and actual spending are computed dynamically."
       >
-        <Button className="gap-2" disabled>
-          <Plus className="h-4 w-4" /> Set Budget
-        </Button>
+        <Badge variant="outline" className="px-3 py-1 font-normal text-xs">
+          Target Month: {targetMonth}
+        </Badge>
       </PageHeader>
 
-      <Card className="border-dashed">
-        <CardHeader className="text-center py-16">
-          <div className="mx-auto p-4 rounded-full bg-slate-100 dark:bg-slate-800 text-muted-foreground w-fit mb-4">
-            <PieChart className="h-8 w-8" />
-          </div>
-          <CardTitle className="text-xl">Budget Tracking Module</CardTitle>
-          <CardDescription className="max-w-md mx-auto">
-            Category monthly limit configurations, progress utilization bars, and over-budget warning notifications will be implemented in the budget phase.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <BudgetView
+        month={targetMonth}
+        categoryBudgets={categoryBudgets}
+        summary={summary}
+      />
     </div>
   );
 }

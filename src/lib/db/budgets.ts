@@ -1,4 +1,6 @@
 import { prisma } from "./prisma";
+import { CategoryType, TransactionType, Category } from "@prisma/client";
+import { getBudgetStatus, BudgetStatus } from "@/constants/budget";
 
 export interface UpsertBudgetInput {
   userId: string;
@@ -7,27 +9,151 @@ export interface UpsertBudgetInput {
   amount: number;
 }
 
+export interface CalculatedCategoryBudget {
+  categoryId: string;
+  category: Category;
+  budgetId?: string;
+  month: string;
+  budgetAmount: number;
+  actualSpent: number;
+  remaining: number;
+  percentUsed: number;
+  status: BudgetStatus;
+}
+
+export interface BudgetSummary {
+  month: string;
+  totalBudget: number;
+  totalSpent: number;
+  totalRemaining: number;
+  overallPercentUsed: number;
+  overallStatus: BudgetStatus;
+  overBudgetCount: number;
+  nearLimitCount: number;
+}
+
 /**
- * Get all budgets for a given user and month ("YYYY-MM")
+ * Get budgets with dynamic actual spent calculations for a target month (YYYY-MM)
  */
-export async function getBudgetsByMonth(userId: string, month: string) {
-  return prisma.budget.findMany({
+export async function getBudgetsWithCalculations(userId: string, month: string) {
+  // Parse month date bounds
+  const [yearStr, monthStr] = month.split("-");
+  const year = parseInt(yearStr || "2026", 10);
+  const monthIdx = parseInt(monthStr || "10", 10) - 1;
+
+  const startDate = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0, 0));
+  const endDate = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));
+
+  // 1. Fetch active expense/both categories for user
+  const categories = await prisma.category.findMany({
+    where: {
+      userId,
+      active: true,
+      type: { in: [CategoryType.EXPENSE, CategoryType.BOTH] },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  // 2. Fetch existing budget targets for user and month
+  const budgets = await prisma.budget.findMany({
     where: {
       userId,
       month,
     },
-    include: {
-      category: true,
-    },
-    orderBy: { category: { name: "asc" } },
   });
+  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b]));
+
+  // 3. Aggregate actual expenses for user, date range, and expense transactions
+  const expenseAggregations = await prisma.transaction.groupBy({
+    by: ["categoryId"],
+    where: {
+      userId,
+      type: TransactionType.EXPENSE,
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+  const spentMap = new Map(
+    expenseAggregations.map((agg) => [agg.categoryId, agg._sum.amount || 0])
+  );
+
+  // 4. Calculate dynamic category budget rows
+  let totalBudget = 0;
+  let totalSpent = 0;
+  let overBudgetCount = 0;
+  let nearLimitCount = 0;
+
+  const categoryBudgets: CalculatedCategoryBudget[] = categories.map((category) => {
+    const existingBudget = budgetMap.get(category.id);
+    const budgetAmount = existingBudget?.amount || 0;
+    const actualSpent = spentMap.get(category.id) || 0;
+    const remaining = budgetAmount - actualSpent;
+
+    const percentUsed =
+      budgetAmount > 0 ? (actualSpent / budgetAmount) * 100 : actualSpent > 0 ? 100 : 0;
+
+    const status = getBudgetStatus(budgetAmount, percentUsed);
+
+    if (status === "OVER_BUDGET") overBudgetCount++;
+    if (status === "NEAR_LIMIT") nearLimitCount++;
+
+    totalBudget += budgetAmount;
+    totalSpent += actualSpent;
+
+    return {
+      categoryId: category.id,
+      category,
+      budgetId: existingBudget?.id,
+      month,
+      budgetAmount,
+      actualSpent,
+      remaining,
+      percentUsed: Math.round(percentUsed * 10) / 10,
+      status,
+    };
+  });
+
+  const totalRemaining = totalBudget - totalSpent;
+  const overallPercentUsed =
+    totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 1000) / 10 : 0;
+  const overallStatus = getBudgetStatus(totalBudget, overallPercentUsed);
+
+  const summary: BudgetSummary = {
+    month,
+    totalBudget,
+    totalSpent,
+    totalRemaining,
+    overallPercentUsed,
+    overallStatus,
+    overBudgetCount,
+    nearLimitCount,
+  };
+
+  return {
+    categoryBudgets,
+    summary,
+  };
 }
 
 /**
- * Upsert (create or update) a category budget for a specific month
+ * Upsert category budget target for a month
  */
 export async function upsertBudget(input: UpsertBudgetInput) {
   const { userId, categoryId, month, amount } = input;
+
+  // Verify category ownership
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, userId },
+  });
+
+  if (!category) {
+    throw new Error("Invalid or unowned category selected.");
+  }
 
   return prisma.budget.upsert({
     where: {
@@ -53,9 +179,17 @@ export async function upsertBudget(input: UpsertBudgetInput) {
 }
 
 /**
- * Delete a budget entry
+ * Delete a budget target entry
  */
 export async function deleteBudget(id: string, userId: string) {
+  const existing = await prisma.budget.findFirst({
+    where: { id, userId },
+  });
+
+  if (!existing) {
+    throw new Error("Budget target not found or unauthorized access.");
+  }
+
   return prisma.budget.delete({
     where: { id, userId },
   });

@@ -18,132 +18,125 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement the complete Monthly Budget feature.
+Now implement the complete Dashboard.
 
-Use the provided Excel Budget screenshot as the functional reference.
+Use the provided Excel Dashboard screenshot as the functional reference, but build a modern responsive finance dashboard rather than copying the spreadsheet layout.
 
-The budget page should allow the user to define a monthly budget for each expense category.
+The dashboard must calculate everything from the database.
 
-IMPORTANT:
+Do NOT hardcode financial values.
 
-Budgets are dynamic.
+TOP FILTER:
 
-If a new category is created, it must automatically become available for budgeting.
+Provide:
 
-Do NOT hardcode categories into the budget page.
+- Start Date
+- End Date
 
-BUDGET MODEL:
+Default to the current month.
 
-A budget belongs to:
+All dashboard statistics must respond to the selected date range.
 
-- authenticated user
-- category
-- month
-- amount
-
-There must be at most one budget for:
-
-user + category + month
-
-BUDGET PAGE:
-
-Provide a month selector.
-
-For the selected month show:
-
-Category
-Budget
-Actual Spent
-Remaining
-% Used
-Status
-Notes
-
-Similar conceptually to the Excel sheet.
-
-CALCULATIONS:
-
-Actual Spent should be calculated from transactions for:
-
-- selected month
-- selected category
-- transaction type = EXPENSE
-
-Remaining:
-
-budget - actualSpent
-
-% Used:
-
-actualSpent / budget * 100
-
-Avoid division by zero.
-
-STATUS:
-
-Possible states:
-
-- No Budget
-- Within Budget
-- Near Limit
-- Over Budget
-
-Use sensible thresholds.
-
-For example:
-
-0-80% = Within Budget
-80-100% = Near Limit
->100% = Over Budget
-
-But keep these thresholds centralized so they can be changed later.
-
-TOP SUMMARY:
+SUMMARY CARDS:
 
 Display:
 
-- Total Budget
-- Total Spent
-- Total Remaining
-- Overall Status
+1. Total Income
+2. Total Expenses
+3. Net Savings
+4. Savings Rate
 
-FEATURES:
+Calculations:
 
-1. Select month
-2. Set budget
-3. Edit budget
-4. Remove budget
-5. Automatically calculate actual spending
-6. Show percentage used
-7. Show status
-8. Highlight over-budget categories
+Net Savings = Total Income - Total Expenses
 
-SERVER ACTIONS:
+Savings Rate =
+if Total Income > 0:
+Net Savings / Total Income * 100
+otherwise 0
 
-Use Server Actions for:
+EXPENSE BY CATEGORY:
 
-- create/update budget
-- delete budget
+Display a category breakdown for the selected date range.
 
-All operations must verify authentication and ownership.
+Use:
 
-IMPORTANT:
+- category name
+- total expense
 
-Do not store Actual Spent, Remaining, Percentage Used, or Status in the database.
+Categories with zero spending can be omitted from the chart.
 
-These are derived values.
+Create a donut/pie chart using Recharts.
 
-The transaction data is the source of truth.
+MONTHLY SUMMARY:
+
+Display monthly:
+
+- Income
+- Expenses
+
+for a useful historical period.
+
+Create a chart comparing income vs expenses.
+
+The chart should be generated dynamically from transaction data.
+
+ADDITIONAL USEFUL INFORMATION:
+
+Include:
+
+- highest spending category
+- largest transaction
+- transaction count
+- budget overview for the selected month
+
+Do not make the dashboard unnecessarily crowded.
+
+RESPONSIVENESS:
+
+Desktop:
+- summary cards in a row
+- charts arranged efficiently
+
+Mobile:
+- cards stack
+- charts resize
+- tables become scrollable or responsive
+
+PERFORMANCE:
+
+Do not fetch every transaction into the browser just to perform calculations there.
+
+Perform aggregations on the server/database layer where practical.
+
+Create reusable server-side query functions for dashboard statistics.
+
+Keep dashboard calculation logic separate from UI components.
+
+For example:
+
+src/lib/finance/
+
+could contain reusable functions such as:
+
+- getDashboardSummary()
+- getExpensesByCategory()
+- getMonthlySummary()
+- getBudgetSummary()
+
+Do not put complex financial calculations directly inside React components.
 
 After implementation:
 
-- test month switching
-- test adding budget
-- test editing budget
-- test category with no transactions
-- test category with no budget
-- test over-budget category
-- test zero budget handling
+- verify date filters
+- verify income calculation
+- verify expense calculation
+- verify savings
+- verify savings rate
+- verify category chart
+- verify monthly chart
+- verify empty states
+- verify responsive layout
 - run lint/typecheck/build
 
 STOP.
