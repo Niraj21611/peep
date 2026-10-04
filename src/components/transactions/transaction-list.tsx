@@ -37,6 +37,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FilterX,
+  FileSpreadsheet,
 } from "lucide-react";
 
 interface TransactionListProps {
@@ -258,9 +259,19 @@ export function TransactionList({
             </Select>
           </div>
 
-          <Button onClick={handleOpenAdd} className="gap-2 shrink-0">
-            <Plus className="h-4 w-4" /> Record Transaction
-          </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/transactions/import")}
+                className="gap-2 shrink-0 border-primary/30 text-primary hover:bg-primary/5"
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Import CSV
+              </Button>
+
+              <Button onClick={handleOpenAdd} className="gap-2 shrink-0">
+                <Plus className="h-4 w-4" /> Record Transaction
+              </Button>
+            </div>
         </div>
 
         {/* Date Range Filters */}

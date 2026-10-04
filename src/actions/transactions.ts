@@ -141,3 +141,73 @@ export async function deleteTransactionAction(id: string): Promise<ActionRespons
     };
   }
 }
+
+export async function parseAndValidateCsvAction(
+  csvContent: string
+): Promise<ActionResponse<import("@/lib/finance/csv-importer").CsvImportSummary>> {
+  try {
+    const user = await requireUser();
+    const { parseAndValidateCsv } = await import("@/lib/finance/csv-importer");
+    const summary = await parseAndValidateCsv(user.id, csvContent);
+
+    return {
+      success: true,
+      message: `Parsed ${summary.totalRows} rows (${summary.validCount} valid, ${summary.invalidCount} invalid, ${summary.duplicateCount} duplicate).`,
+      data: summary,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "Failed to parse CSV file.",
+    };
+  }
+}
+
+export async function executeCsvImportAction(
+  rowsToImport: import("@/lib/finance/csv-importer").ParsedCsvRow[]
+): Promise<ActionResponse<{ importedCount: number }>> {
+  try {
+    const user = await requireUser();
+    const { prisma } = await import("@/lib/db/prisma");
+
+    const validRows = rowsToImport.filter((r) => r.status === "VALID" && r.parsedDate && r.parsedType && r.categoryId && r.parsedAmount);
+
+    if (validRows.length === 0) {
+      return {
+        success: false,
+        message: "No valid rows selected for import.",
+      };
+    }
+
+    let importedCount = 0;
+
+    for (const row of validRows) {
+      await prisma.transaction.create({
+        data: {
+          userId: user.id,
+          date: new Date(row.parsedDate!),
+          type: row.parsedType!,
+          categoryId: row.categoryId!,
+          amount: row.parsedAmount!,
+          notes: row.notes,
+        },
+      });
+      importedCount++;
+    }
+
+    revalidatePath("/transactions");
+    revalidatePath("/dashboard");
+    revalidatePath("/budgets");
+
+    return {
+      success: true,
+      message: `Successfully imported ${importedCount} transaction(s) into your financial ledger.`,
+      data: { importedCount },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "An error occurred during database insertion.",
+    };
+  }
+}

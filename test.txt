@@ -18,72 +18,105 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement a safe transaction import feature for migrating the user's existing Excel data into the application.
+The core application is now implemented.
 
-The user currently maintains transactions in an Excel/Google Sheets structure containing:
+Now perform a production-readiness review and hardening pass.
 
-Date
-Day
-Month
-Type
-Category
-Amount
-Notes
+DO NOT add major new features.
 
-The import feature should accept CSV rather than attempting to directly parse arbitrary Excel files initially.
+Focus on correctness, security, maintainability, performance, and code quality.
 
-Create:
+AUDIT:
 
-/transactions/import
+1. Authentication security
+2. Authorization
+3. Server Actions
+4. Input validation
+5. Prisma queries
+6. MongoDB usage
+7. Monetary calculations
+8. Error handling
+9. Loading states
+10. Empty states
+11. Responsive UI
+12. Accessibility
+13. TypeScript strictness
+14. Environment variables
+15. Logging
+16. Sensitive data exposure
+17. Client/server boundaries
+18. Duplicate database queries
+19. N+1 query patterns
+20. Unnecessary client components
 
-FUNCTIONALITY:
+SECURITY:
 
-1. Upload CSV
-2. Parse CSV
-3. Validate every row
-4. Preview valid/invalid rows
-5. Show validation errors
-6. Allow user to confirm import
-7. Import valid transactions using a server-side operation
+Ensure:
 
-VALIDATION:
+- password hashes never reach client components
+- user ownership is verified server-side
+- client-provided user IDs are never trusted
+- server actions validate authentication
+- server actions validate input
+- cookies are secure in production
+- secrets are not committed
+- environment variables are properly documented
 
-Validate:
+MONEY:
 
-- date
-- type
-- category
-- amount
-- notes
+Audit all financial calculations.
 
-Category names should be matched against existing categories.
+Ensure:
 
-Do not silently create categories during import.
+- no unsafe floating point arithmetic
+- consistent currency handling
+- consistent rounding
+- dashboard totals match transaction totals
+- budget calculations match transaction calculations
 
-If a category does not exist, clearly show it as an error and tell the user to create the category first.
+DATABASE:
 
-DUPLICATES:
+Review indexes and uniqueness constraints.
 
-Prevent accidental duplicate imports.
+Ensure queries are appropriately scoped to the authenticated user.
 
-Use a sensible duplicate detection strategy based on transaction fields.
+PERFORMANCE:
 
-Do not blindly import the same CSV twice.
+Avoid fetching huge transaction datasets unnecessarily.
 
-IMPORTANT:
+Move aggregation logic to server/database-side operations where appropriate.
 
-Never partially import rows without clearly communicating what happened.
+UI:
 
-Provide:
+Ensure every important operation has:
 
-- total rows
-- valid rows
-- invalid rows
-- duplicate rows
-- imported rows
+- loading state
+- success state
+- error state
+- empty state
+- confirmation for destructive actions
 
-Do not expose database errors directly to the user.
+CODE QUALITY:
 
-After implementation, test using a sample CSV based on the user's existing transaction format.
+Remove:
+
+- unused imports
+- dead code
+- unnecessary abstractions
+- duplicate logic
+- `any` types where avoidable
+- console logs that should not exist in production
+
+Run:
+
+- lint
+- typecheck
+- production build
+
+Fix every error and warning that can reasonably be fixed.
+
+Do not introduce unrelated features.
+
+Finally, provide a concise production-readiness report describing what was reviewed and what was changed.
 
 STOP.
