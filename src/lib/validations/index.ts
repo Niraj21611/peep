@@ -1,1 +1,1 @@
-// Export Zod schemas for validation
+export * from "./auth";

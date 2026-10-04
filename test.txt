@@ -17,3 +17,76 @@ Keep generated shadcn primitives inside:
 src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
+
+Now build ONLY the authenticated application shell and navigation.
+
+Do not implement full transaction logic, budget calculations, recurring transaction logic, or dashboard analytics yet.
+
+The authenticated application should have:
+
+1. Sidebar/navigation
+2. Top header
+3. Main content area
+4. Responsive mobile navigation
+5. Logout action
+6. Current user/session awareness
+
+MAIN NAVIGATION:
+
+- Dashboard
+- Transactions
+- Budgets
+- Categories
+- Recurring Transactions
+
+The navigation should be extensible so additional sections can be added later.
+
+Use:
+
+- Tailwind CSS
+- Lucide React
+- reusable components
+- accessible buttons/links
+- responsive design
+
+Create reusable components under:
+
+src/components/layout/
+
+For example:
+
+- Sidebar
+- MobileNav
+- Header
+- PageHeader
+- NavigationItem
+
+DESIGN:
+
+The application should feel like a modern personal finance dashboard rather than an Excel spreadsheet.
+
+Use cards, tables, badges, dropdowns, dialogs and responsive layouts where appropriate.
+
+Do not overuse colors.
+
+Use semantic visual states for:
+
+- income
+- expense
+- positive savings
+- warning
+- budget exceeded
+
+Do not hardcode fake financial values.
+
+Pages can contain temporary empty states/placeholders until their respective functionality is implemented.
+
+After implementation:
+
+- verify all navigation links
+- verify protected routes
+- verify logout
+- verify mobile responsiveness
+- run lint/typecheck/build
+
+STOP.

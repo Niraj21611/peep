@@ -1,1 +1,1 @@
-// Export server actions
+export * from "./auth";
