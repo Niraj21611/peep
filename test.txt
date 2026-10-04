@@ -18,137 +18,72 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement the Recurring Transactions feature.
+Now implement a safe transaction import feature for migrating the user's existing Excel data into the application.
 
-This feature is extremely important because it replaces repetitive manual entries from the user's Excel workflow.
+The user currently maintains transactions in an Excel/Google Sheets structure containing:
 
-The user currently has recurring expenses such as a daily commute where the same expense may occur repeatedly.
-
-The system should allow the user to define a recurring transaction rule.
-
-EXAMPLE:
-
-Name:
-Daily Commute
-
-Amount:
-77
-
-Type:
-Expense
-
-Category:
-Transport
-
-Frequency:
-Weekdays
-
-Start Date:
-01-Oct-2026
-
-End Date:
-Optional
-
-The system should be able to generate the corresponding actual transactions.
-
-SUPPORTED FREQUENCIES:
-
-- Daily
-- Weekdays
-- Weekly
-- Monthly
-- Yearly
-- Custom
-
-IMPORTANT ARCHITECTURE:
-
-Do not simply insert infinite future transactions.
-
-RecurringTransaction represents the RULE.
-
-Transaction represents an ACTUAL financial event.
-
-Keep these concepts separate.
-
-Each generated transaction should retain a reference to the recurring transaction that generated it where appropriate.
-
-DUPLICATE PROTECTION:
-
-The system must never generate the same recurring occurrence twice.
-
-Design an appropriate uniqueness/idempotency strategy.
-
-USER INTERFACE:
-
-Create a recurring transactions page containing:
-
-- active recurring rules
-- inactive recurring rules
-- add recurring transaction
-- edit
-- activate/deactivate
-- delete
-
-Display:
-
-Name
-Amount
+Date
+Day
+Month
 Type
 Category
-Frequency
-Next occurrence
-Status
+Amount
+Notes
 
-SERVER-SIDE GENERATION:
+The import feature should accept CSV rather than attempting to directly parse arbitrary Excel files initially.
 
-Implement a reusable server-side function that can generate due recurring transactions.
+Create:
 
-For example conceptually:
+/transactions/import
 
-generateDueRecurringTransactions()
+FUNCTIONALITY:
 
-It must:
+1. Upload CSV
+2. Parse CSV
+3. Validate every row
+4. Preview valid/invalid rows
+5. Show validation errors
+6. Allow user to confirm import
+7. Import valid transactions using a server-side operation
 
-1. Find active recurring rules
-2. Determine due occurrences
-3. Check whether an occurrence already exists
-4. Create missing transactions
-5. Update the recurrence state safely
+VALIDATION:
 
-Do not rely on client-side JavaScript timers.
+Validate:
 
-The generation mechanism should be designed so that it can later be triggered by:
+- date
+- type
+- category
+- amount
+- notes
 
-- application access
-- scheduled job/cron
-- manual "Generate Due Transactions" action
+Category names should be matched against existing categories.
 
-For the initial implementation, provide a safe manual/server-trigger mechanism.
+Do not silently create categories during import.
 
-Do not introduce an external cron service yet.
+If a category does not exist, clearly show it as an error and tell the user to create the category first.
+
+DUPLICATES:
+
+Prevent accidental duplicate imports.
+
+Use a sensible duplicate detection strategy based on transaction fields.
+
+Do not blindly import the same CSV twice.
 
 IMPORTANT:
 
-Do not automatically create historical transactions incorrectly.
+Never partially import rows without clearly communicating what happened.
 
-Respect the recurrence start date and optional end date.
+Provide:
 
-Do not create occurrences after the end date.
+- total rows
+- valid rows
+- invalid rows
+- duplicate rows
+- imported rows
 
-After implementation:
+Do not expose database errors directly to the user.
 
-Test:
-
-- daily
-- weekdays
-- weekly
-- monthly
-- duplicate prevention
-- inactive recurrence
-- start date
-- end date
-- manual generation
-- editing recurrence
-- deleting recurrence
+After implementation, test using a sample CSV based on the user's existing transaction format.
 
 STOP.

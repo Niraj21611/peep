@@ -62,21 +62,24 @@ model Category {
 }
 
 model Transaction {
-  id         String          @id @default(auto()) @map("_id") @db.ObjectId
-  userId     String          @db.ObjectId
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date       DateTime
-  type       TransactionType
-  categoryId String          @db.ObjectId
-  category   Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  amount     Float
-  notes      String?
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id                     String                @id @default(auto()) @map("_id") @db.ObjectId
+  userId                 String                @db.ObjectId
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                   DateTime
+  type                   TransactionType
+  categoryId             String                @db.ObjectId
+  category               Category              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount                 Float
+  notes                  String?
+  recurringTransactionId String?               @db.ObjectId
+  recurringTransaction   RecurringTransaction? @relation(fields: [recurringTransactionId], references: [id], onDelete: SetNull)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
 
   @@index([userId, date])
   @@index([userId, categoryId])
   @@index([userId, type])
+  @@index([userId, recurringTransactionId])
 }
 
 model Budget {
@@ -111,6 +114,8 @@ model RecurringTransaction {
   recurrenceConfig String?             // Optional JSON configuration string for custom frequencies
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
+
+  generatedTransactions Transaction[]
 
   @@index([userId, active])
   @@index([userId, categoryId])
