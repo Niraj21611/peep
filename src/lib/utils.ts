@@ -33,9 +33,9 @@ export function formatCurrency(amount: number, currency = "INR", locale = "en-IN
  */
 export function formatDateForInput(date: Date): string {
   const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -44,6 +44,7 @@ export function formatDateForInput(date: Date): string {
  */
 export function formatDateDisplay(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-US", {
+    timeZone: "UTC",
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -54,12 +55,12 @@ export function formatDateDisplay(date: Date | string): string {
  * Derived Day of Week e.g. "Sunday"
  */
 export function getDerivedDayOfWeek(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-US", { weekday: "long" });
+  return new Date(date).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" });
 }
 
 /**
  * Derived Month & Year e.g. "October 2026"
  */
 export function getDerivedMonthYear(date: Date | string): string {
-  return new Date(date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  return new Date(date).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", year: "numeric" });
 }

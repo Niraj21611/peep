@@ -138,11 +138,23 @@ export async function parseAndValidateCsv(
 
     // 1. Validate Date
     let parsedDate: Date | undefined;
-    const dateObj = new Date(rawDate);
-    if (isNaN(dateObj.getTime())) {
-      errors.push(`Invalid date format "${rawDate}". Use YYYY-MM-DD or DD/MM/YYYY.`);
+    
+    // Fast path for YYYY-MM-DD
+    const isoMatch = rawDate.trim().match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (isoMatch) {
+      parsedDate = new Date(Date.UTC(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3])));
     } else {
-      parsedDate = dateObj;
+      const dateObj = new Date(rawDate);
+      if (isNaN(dateObj.getTime())) {
+        errors.push(`Invalid date format "${rawDate}". Use YYYY-MM-DD.`);
+      } else {
+        // If parsed as local time, extract the local date components and construct a UTC Midnight
+        if (rawDate.toUpperCase().includes("Z") || rawDate.includes("T")) {
+          parsedDate = new Date(Date.UTC(dateObj.getUTCFullYear(), dateObj.getUTCMonth(), dateObj.getUTCDate()));
+        } else {
+          parsedDate = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+        }
+      }
     }
 
     // 2. Validate Type

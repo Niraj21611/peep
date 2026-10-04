@@ -110,9 +110,12 @@ export function TransactionFormDialog({
     }
   }, [state, onOpenChange]);
 
+  const localNow = new Date();
+  const localTodayUTC = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
+
   const defaultDateStr = transaction
     ? formatDateForInput(transaction.date)
-    : formatDateForInput(new Date());
+    : formatDateForInput(localTodayUTC);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

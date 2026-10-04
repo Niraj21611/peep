@@ -27,6 +27,8 @@ export interface TransactionFilterOptions {
   search?: string;
   page?: number;
   pageSize?: number;
+  sortBy?: "date" | "amount";
+  sortOrder?: "asc" | "desc";
 }
 
 /**
@@ -44,6 +46,8 @@ export async function getTransactionsByUserId(
     search,
     page = 1,
     pageSize = 15,
+    sortBy = "date",
+    sortOrder = "desc",
   } = options;
 
   const whereCondition = {
@@ -69,12 +73,13 @@ export async function getTransactionsByUserId(
   };
 
   const skip = (page - 1) * pageSize;
+  const orderByClause = { [sortBy]: sortOrder };
 
   const [transactions, totalCount, aggregateSummary] = await Promise.all([
     prisma.transaction.findMany({
       where: whereCondition,
       include: { category: true },
-      orderBy: { date: "desc" },
+      orderBy: orderByClause,
       skip,
       take: pageSize,
     }),

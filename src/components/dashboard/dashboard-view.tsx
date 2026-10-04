@@ -128,6 +128,70 @@ export function DashboardView({
         </Card>
       </div>
 
+      {/* Tables section: Expense by Category & Monthly Summary */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Expense by Category Table */}
+        <div className="flex flex-col space-y-2">
+          <h2 className="text-xl font-bold text-[#1F4E79] dark:text-blue-300">Expense by Category</h2>
+          <div className="overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-sm shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-[#3478C1] text-white">
+                <tr>
+                  <th className="py-2 px-3 text-left font-bold border-b border-[#3478C1]">Category</th>
+                  <th className="py-2 px-3 text-right font-bold border-b border-[#3478C1]">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categoryExpenses.length > 0 ? (
+                  categoryExpenses.map((expense) => (
+                    <tr key={expense.categoryId} className="border-b border-slate-200 dark:border-slate-800 last:border-0 even:bg-slate-50 dark:even:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+                      <td className="py-1.5 px-3">{expense.name}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{formatCurrency(expense.amount)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="py-4 text-center text-muted-foreground italic">No expenses recorded</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Monthly Summary Table */}
+        <div className="flex flex-col space-y-2">
+          <h2 className="text-xl font-bold text-[#1F4E79] dark:text-blue-300">Monthly Summary</h2>
+          <div className="overflow-hidden border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-sm shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-[#3478C1] text-white">
+                <tr>
+                  <th className="py-2 px-3 text-left font-bold border-b border-[#3478C1]">Month</th>
+                  <th className="py-2 px-3 text-right font-bold border-b border-[#3478C1]">Income</th>
+                  <th className="py-2 px-3 text-right font-bold border-b border-[#3478C1]">Expenses</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlySummary.length > 0 ? (
+                  monthlySummary.map((month) => (
+                    <tr key={month.monthKey} className="border-b border-slate-200 dark:border-slate-800 last:border-0 even:bg-slate-50 dark:even:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors">
+                      <td className="py-1.5 px-3 text-center sm:text-left">{month.month}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{formatCurrency(month.income)}</td>
+                      <td className="py-1.5 px-3 text-right tabular-nums">{formatCurrency(month.expense)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="py-4 text-center text-muted-foreground italic">No monthly data available</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       {/* Responsive Charts Grid (Donut Chart & Bar Chart) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <CategoryExpenseChart data={categoryExpenses} />

@@ -12,24 +12,25 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateForInput } from "@/lib/utils";
 
 interface DashboardPageProps {
-  searchParams: {
+  searchParams: Promise<{
     startDate?: string;
     endDate?: string;
-  };
+  }>;
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const user = await requireUser();
+  const params = await searchParams;
 
   const now = new Date();
-  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-  const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const defaultStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+  const defaultEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
 
-  const startDate = searchParams.startDate
-    ? new Date(`${searchParams.startDate}T00:00:00.000Z`)
+  const startDate = params.startDate
+    ? new Date(`${params.startDate}T00:00:00.000Z`)
     : defaultStart;
-  const endDate = searchParams.endDate
-    ? new Date(`${searchParams.endDate}T23:59:59.999Z`)
+  const endDate = params.endDate
+    ? new Date(`${params.endDate}T23:59:59.999Z`)
     : defaultEnd;
 
   const startDateStr = formatDateForInput(startDate);
@@ -41,7 +42,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     await Promise.all([
       getDashboardSummary(user.id, startDate, endDate),
       getExpensesByCategory(user.id, startDate, endDate),
-      getMonthlySummary(user.id, 6),
+      getMonthlySummary(user.id, 12),
       getDashboardHighlights(user.id, startDate, endDate),
       getDashboardBudgetOverview(user.id, currentMonthKey),
     ]);

@@ -112,9 +112,12 @@ export function RecurringFormDialog({
     }
   }, [state, onOpenChange]);
 
+  const localNow = new Date();
+  const localTodayUTC = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
+
   const defaultStartStr = rule
     ? formatDateForInput(rule.startDate)
-    : formatDateForInput(new Date());
+    : formatDateForInput(localTodayUTC);
 
   const defaultEndStr = rule?.endDate
     ? formatDateForInput(rule.endDate)

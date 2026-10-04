@@ -169,6 +169,7 @@ export async function getMonthlySummary(
 
     const monthKey = `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
     const monthLabel = startDate.toLocaleDateString("en-US", {
+      timeZone: "UTC",
       month: "short",
       year: "numeric",
     });
