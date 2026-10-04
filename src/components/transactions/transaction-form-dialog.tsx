@@ -16,7 +16,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ActionResponse, TransactionWithCategory, TransactionTemplateWithCategory } from "@/types";
@@ -36,7 +35,6 @@ import {
   Calendar,
   FolderTree,
   FileText,
-  PlusCircle,
 } from "lucide-react";
 
 interface TransactionFormDialogProps {

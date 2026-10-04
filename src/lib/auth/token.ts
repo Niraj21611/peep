@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { COOKIE_SESSION_NAME } from "@/constants";
 
 export interface SessionPayload {
   userId: string;

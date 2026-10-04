@@ -9,7 +9,7 @@ import { formatCurrency, formatDateDisplay } from "@/lib/utils";
 import { DashboardDateFilter } from "./dashboard-date-filter";
 import { CategoryExpenseChart } from "./category-expense-chart";
 import { MonthlyComparisonChart } from "./monthly-comparison-chart";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {

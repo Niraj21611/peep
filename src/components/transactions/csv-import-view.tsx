@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { parseAndValidateCsvAction, executeCsvImportAction } from "@/actions/transactions";
-import { CsvImportSummary, ParsedCsvRow } from "@/lib/finance/csv-importer";
+import { CsvImportSummary } from "@/lib/finance/csv-importer";
 import { formatCurrency, formatDateDisplay } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,

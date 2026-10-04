@@ -74,7 +74,7 @@ export async function updateCategoryAction(
     const validation = categorySchema.safeParse({
       name: rawName,
       type: rawType,
-      active: rawActive === "true" || rawActive === "on" || rawActive === true,
+      active: rawActive === "true" || rawActive === "on",
     });
 
     if (!validation.success) {

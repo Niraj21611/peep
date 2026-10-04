@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { RecurrenceFrequency, RecurringTransaction, Transaction } from "@prisma/client";
+import { RecurrenceFrequency, RecurringTransaction } from "@prisma/client";
 
 export interface GenerationResult {
   rulesProcessed: number;
