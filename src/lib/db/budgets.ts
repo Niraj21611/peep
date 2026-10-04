@@ -44,40 +44,38 @@ export async function getBudgetsWithCalculations(userId: string, month: string) 
   const startDate = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0, 0));
   const endDate = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));
 
-  // 1. Fetch active expense/both categories for user
-  const categories = await prisma.category.findMany({
-    where: {
-      userId,
-      active: true,
-      type: { in: [CategoryType.EXPENSE, CategoryType.BOTH] },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  // 2. Fetch existing budget targets for user and month
-  const budgets = await prisma.budget.findMany({
-    where: {
-      userId,
-      month,
-    },
-  });
-  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b]));
-
-  // 3. Aggregate actual expenses for user, date range, and expense transactions
-  const expenseAggregations = await prisma.transaction.groupBy({
-    by: ["categoryId"],
-    where: {
-      userId,
-      type: TransactionType.EXPENSE,
-      date: {
-        gte: startDate,
-        lte: endDate,
+  // Run all independent queries concurrently to prevent waterfall latency
+  const [categories, budgets, expenseAggregations] = await Promise.all([
+    prisma.category.findMany({
+      where: {
+        userId,
+        active: true,
+        type: { in: [CategoryType.EXPENSE, CategoryType.BOTH] },
       },
-    },
-    _sum: {
-      amount: true,
-    },
-  });
+      orderBy: { name: "asc" },
+    }),
+    prisma.budget.findMany({
+      where: {
+        userId,
+        month,
+      },
+    }),
+    prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        type: TransactionType.EXPENSE,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    }),
+  ]);
+  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b]));
   const spentMap = new Map(
     expenseAggregations.map((agg) => [agg.categoryId, roundMoney(agg._sum.amount || 0)])
   );

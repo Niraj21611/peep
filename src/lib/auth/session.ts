@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE_SESSION_NAME } from "@/constants";
@@ -43,7 +44,7 @@ const cookieStore = await cookies();
 /**
  * Get current authenticated user (server-side, database backed)
  */
-export async function getCurrentUser(): Promise<SafeUser | null> {
+export const getCurrentUser = cache(async (): Promise<SafeUser | null> => {
 const cookieStore = await cookies();  const token = cookieStore.get(COOKIE_SESSION_NAME)?.value;
   if (!token) return null;
 
@@ -56,7 +57,7 @@ const cookieStore = await cookies();  const token = cookieStore.get(COOKIE_SESSI
   // Sanitize passwordHash before returning to application code
   const { passwordHash: _, ...safeUser } = user;
   return safeUser;
-}
+});
 
 /**
  * Require authenticated user or redirect to /login

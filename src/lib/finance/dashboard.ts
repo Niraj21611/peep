@@ -157,10 +157,12 @@ export async function getMonthlySummary(
   userId: string,
   monthsCount = 6
 ): Promise<MonthlyComparisonData[]> {
-  const result: MonthlyComparisonData[] = [];
   const now = new Date();
 
-  for (let i = monthsCount - 1; i >= 0; i--) {
+  // Create an array of indices from (monthsCount - 1) down to 0
+  const indices = Array.from({ length: monthsCount }, (_, k) => monthsCount - 1 - k);
+
+  const promises = indices.map(async (i) => {
     const year = new Date(now.getFullYear(), now.getMonth() - i, 1).getFullYear();
     const monthIdx = new Date(now.getFullYear(), now.getMonth() - i, 1).getMonth();
 
@@ -197,16 +199,16 @@ export async function getMonthlySummary(
       }
     }
 
-    result.push({
+    return {
       month: monthLabel,
       monthKey,
       income,
       expense,
       net: roundMoney(income - expense),
-    });
-  }
+    };
+  });
 
-  return result;
+  return Promise.all(promises);
 }
 
 /**
@@ -283,27 +285,27 @@ export async function getDashboardBudgetOverview(
   const startDate = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0, 0));
   const endDate = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));
 
-  const categories = await prisma.category.findMany({
-    where: {
-      userId,
-      active: true,
-      type: { in: [CategoryType.EXPENSE, CategoryType.BOTH] },
-    },
-  });
-
-  const budgets = await prisma.budget.findMany({
-    where: { userId, month },
-  });
-
-  const spentGroup = await prisma.transaction.groupBy({
-    by: ["categoryId"],
-    where: {
-      userId,
-      type: TransactionType.EXPENSE,
-      date: { gte: startDate, lte: endDate },
-    },
-    _sum: { amount: true },
-  });
+  const [categories, budgets, spentGroup] = await Promise.all([
+    prisma.category.findMany({
+      where: {
+        userId,
+        active: true,
+        type: { in: [CategoryType.EXPENSE, CategoryType.BOTH] },
+      },
+    }),
+    prisma.budget.findMany({
+      where: { userId, month },
+    }),
+    prisma.transaction.groupBy({
+      by: ["categoryId"],
+      where: {
+        userId,
+        type: TransactionType.EXPENSE,
+        date: { gte: startDate, lte: endDate },
+      },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const budgetMap = new Map(budgets.map((b) => [b.categoryId, roundMoney(b.amount)]));
   const spentMap = new Map(spentGroup.map((s) => [s.categoryId, roundMoney(s._sum.amount || 0)]));
