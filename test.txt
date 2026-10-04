@@ -18,127 +18,132 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement the complete Transactions feature.
+Now implement the complete Monthly Budget feature.
 
-Use the provided Excel Transactions screenshot as the functional reference.
+Use the provided Excel Budget screenshot as the functional reference.
 
-The current Excel transaction structure contains:
+The budget page should allow the user to define a monthly budget for each expense category.
 
-- Date
-- Day
-- Month
-- Type
-- Category
-- Amount
-- Notes
+IMPORTANT:
 
-Do NOT copy the spreadsheet UI literally.
+Budgets are dynamic.
 
-Build a proper modern finance transaction interface.
+If a new category is created, it must automatically become available for budgeting.
 
-TRANSACTION TYPES:
+Do NOT hardcode categories into the budget page.
 
-- INCOME
-- EXPENSE
+BUDGET MODEL:
 
-FIELDS:
+A budget belongs to:
 
-- Date
-- Type
-- Category
-- Amount
-- Notes
+- authenticated user
+- category
+- month
+- amount
 
-DAY AND MONTH:
+There must be at most one budget for:
 
-Do NOT store Day and Month as independent database fields.
+user + category + month
 
-They should be derived from the transaction date when displayed.
+BUDGET PAGE:
 
-CATEGORY:
+Provide a month selector.
 
-Load categories dynamically from the database.
+For the selected month show:
 
-Only show categories appropriate for the selected transaction type.
+Category
+Budget
+Actual Spent
+Remaining
+% Used
+Status
+Notes
 
-AMOUNT:
+Similar conceptually to the Excel sheet.
 
-Use safe monetary handling.
+CALCULATIONS:
 
-Do not use JavaScript floating point calculations for financial aggregation.
+Actual Spent should be calculated from transactions for:
 
-FUNCTIONALITY:
+- selected month
+- selected category
+- transaction type = EXPENSE
 
-1. Add transaction
-2. Edit transaction
-3. Delete transaction
-4. List transactions
-5. Search transactions
-6. Filter by:
-   - date range
-   - type
-   - category
-7. Sort by date
-8. Pagination or efficient loading for larger datasets
-9. Empty state
-10. Loading state
-11. Error state
+Remaining:
+
+budget - actualSpent
+
+% Used:
+
+actualSpent / budget * 100
+
+Avoid division by zero.
+
+STATUS:
+
+Possible states:
+
+- No Budget
+- Within Budget
+- Near Limit
+- Over Budget
+
+Use sensible thresholds.
+
+For example:
+
+0-80% = Within Budget
+80-100% = Near Limit
+>100% = Over Budget
+
+But keep these thresholds centralized so they can be changed later.
+
+TOP SUMMARY:
+
+Display:
+
+- Total Budget
+- Total Spent
+- Total Remaining
+- Overall Status
+
+FEATURES:
+
+1. Select month
+2. Set budget
+3. Edit budget
+4. Remove budget
+5. Automatically calculate actual spending
+6. Show percentage used
+7. Show status
+8. Highlight over-budget categories
 
 SERVER ACTIONS:
 
-Create server actions such as:
+Use Server Actions for:
 
-- createTransaction
-- updateTransaction
-- deleteTransaction
+- create/update budget
+- delete budget
 
-All actions must:
+All operations must verify authentication and ownership.
 
-- verify authentication
-- validate input with Zod
-- verify category ownership
-- verify transaction ownership
-- perform database operation
-- return safe structured results
+IMPORTANT:
 
-Do not trust client-provided user IDs.
+Do not store Actual Spent, Remaining, Percentage Used, or Status in the database.
 
-The authenticated session determines the user.
+These are derived values.
 
-TRANSACTION TABLE:
-
-Display something similar conceptually to:
-
-Date | Type | Category | Amount | Notes | Actions
-
-Use badges for Income/Expense.
-
-Add a clear "Add Transaction" button.
-
-FORM:
-
-Use a reusable transaction form for both create and edit.
-
-The form should dynamically update the category options based on transaction type.
-
-Do not duplicate create/edit form code.
-
-After creating/updating/deleting a transaction, update the UI without requiring a full browser refresh where practical.
-
-Do not implement dashboard analytics yet.
-
-Do not implement recurring transaction generation yet.
+The transaction data is the source of truth.
 
 After implementation:
 
-- test income
-- test expense
-- test category selection
-- test validation
-- test edit
-- test delete
-- test filters
-- test ownership/security
+- test month switching
+- test adding budget
+- test editing budget
+- test category with no transactions
+- test category with no budget
+- test over-budget category
+- test zero budget handling
 - run lint/typecheck/build
 
 STOP.

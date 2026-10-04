@@ -1,34 +1,67 @@
 import { requireUser } from "@/lib/auth/session";
+import { getTransactionsByUserId } from "@/lib/db/transactions";
+import { getCategoriesByUserId } from "@/lib/db/categories";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, Receipt } from "lucide-react";
+import { TransactionList } from "@/components/transactions/transaction-list";
+import { Badge } from "@/components/ui/badge";
+import { TransactionType } from "@prisma/client";
 
-export default async function TransactionsPage() {
-  await requireUser();
+interface TransactionsPageProps {
+  searchParams: {
+    page?: string;
+    type?: string;
+    categoryId?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+  };
+}
+
+export default async function TransactionsPage({ searchParams }: TransactionsPageProps) {
+  const user = await requireUser();
+
+  const page = parseInt(searchParams.page || "1", 10);
+  const type =
+    searchParams.type === TransactionType.INCOME || searchParams.type === TransactionType.EXPENSE
+      ? (searchParams.type as TransactionType)
+      : undefined;
+  const categoryId = searchParams.categoryId;
+  const search = searchParams.search;
+  const startDate = searchParams.startDate ? new Date(searchParams.startDate) : undefined;
+  const endDate = searchParams.endDate ? new Date(searchParams.endDate) : undefined;
+
+  const [transactionsData, categories] = await Promise.all([
+    getTransactionsByUserId(user.id, {
+      page,
+      pageSize: 15,
+      type,
+      categoryId,
+      search,
+      startDate,
+      endDate,
+    }),
+    getCategoriesByUserId(user.id, true),
+  ]);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Transactions"
-        description="View, log, and filter your income and expense transaction records."
+        title="Transaction Ledger"
+        description="Log, track, and filter all income and expense transactions. Derived Day and Month attributes are automatically formatted."
       >
-        <Button className="gap-2" disabled>
-          <Plus className="h-4 w-4" /> Add Transaction
-        </Button>
+        <Badge variant="outline" className="px-3 py-1 font-normal text-xs">
+          {transactionsData.totalCount} Total Entries
+        </Badge>
       </PageHeader>
 
-      <Card className="border-dashed">
-        <CardHeader className="text-center py-16">
-          <div className="mx-auto p-4 rounded-full bg-slate-100 dark:bg-slate-800 text-muted-foreground w-fit mb-4">
-            <Receipt className="h-8 w-8" />
-          </div>
-          <CardTitle className="text-xl">Transaction Management Module</CardTitle>
-          <CardDescription className="max-w-md mx-auto">
-            Interactive transaction table, category filtering, date range selection, and transaction creation forms will be implemented in the transaction phase.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      <TransactionList
+        transactions={transactionsData.transactions}
+        categories={categories}
+        totalCount={transactionsData.totalCount}
+        totalPages={transactionsData.totalPages}
+        currentPage={transactionsData.currentPage}
+        summary={transactionsData.summary}
+      />
     </div>
   );
 }
