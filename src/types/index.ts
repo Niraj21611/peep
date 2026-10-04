@@ -1,6 +1,24 @@
-/**
- * Common application types and interfaces
- */
+import {
+  User,
+  Category,
+  Transaction,
+  Budget,
+  RecurringTransaction,
+  CategoryType,
+  TransactionType,
+  RecurrenceFrequency,
+} from "@prisma/client";
+
+export type {
+  User,
+  Category,
+  Transaction,
+  Budget,
+  RecurringTransaction,
+  CategoryType,
+  TransactionType,
+  RecurrenceFrequency,
+};
 
 export interface ActionResponse<T = unknown> {
   success: boolean;
@@ -9,4 +27,14 @@ export interface ActionResponse<T = unknown> {
   errors?: Record<string, string[]>;
 }
 
-export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER";
+export type TransactionWithCategory = Transaction & {
+  category: Category;
+};
+
+export type BudgetWithCategory = Budget & {
+  category: Category;
+};
+
+export type RecurringTransactionWithCategory = RecurringTransaction & {
+  category: Category;
+};

@@ -1,4 +1,4 @@
-// Prisma Schema configured for MongoDB
+// Prisma Schema for MongoDB
 
 generator client {
   provider = "prisma-client-js"
@@ -9,4 +9,109 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Foundation model placeholders will be implemented in subsequent database step
+enum CategoryType {
+  INCOME
+  EXPENSE
+  BOTH
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  categories            Category[]
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+}
+
+model Category {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String       @db.ObjectId
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      CategoryType
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  transactions          Transaction[]
+  budgets               Budget[]
+  recurringTransactions RecurringTransaction[]
+
+  @@unique([userId, name])
+  @@index([userId, type])
+  @@index([userId, active])
+}
+
+model Transaction {
+  id         String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String          @db.ObjectId
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       DateTime
+  type       TransactionType
+  categoryId String          @db.ObjectId
+  category   Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount     Float
+  notes      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, categoryId])
+  @@index([userId, type])
+}
+
+model Budget {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String   @db.ObjectId
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  month      String   // Format "YYYY-MM", e.g., "2026-10"
+  amount     Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, categoryId, month])
+  @@index([userId, month])
+}
+
+model RecurringTransaction {
+  id               String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String              @db.ObjectId
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  amount           Float
+  type             TransactionType
+  categoryId       String              @db.ObjectId
+  category         Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  frequency        RecurrenceFrequency
+  startDate        DateTime
+  endDate          DateTime?
+  active           Boolean             @default(true)
+  notes            String?
+  recurrenceConfig String?             // Optional JSON configuration string for custom frequencies
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([userId, active])
+  @@index([userId, categoryId])
+}

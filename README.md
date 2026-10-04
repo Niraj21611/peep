@@ -12,62 +12,52 @@ A production-quality single-user personal finance tracking web application built
 - **Validation**: Zod
 - **Visualization**: Recharts
 
-## Project Architecture & Directory Structure
+## Database Architecture (Prisma + MongoDB)
 
-```text
-src/
-├── app/
-│   ├── (auth)/          # Authentication pages (login, session handling)
-│   ├── (dashboard)/     # Dashboard and protected routes
-│   ├── layout.tsx       # Root application layout
-│   ├── page.tsx         # Landing / entry page
-│   └── globals.css      # Design tokens and global CSS
-├── components/
-│   ├── ui/              # Primitive reusable UI elements (shadcn/ui)
-│   ├── layout/          # Page layouts, navbar, sidebar, header
-│   ├── dashboard/       # Dashboard overview widgets and charts
-│   ├── transactions/    # Transaction tables, forms, filters
-│   ├── budgets/         # Budgeting components and progress indicators
-│   ├── categories/      # Category management components
-│   └── recurring/       # Recurring expense management components
-├── actions/             # Server Actions for data mutations
-├── lib/
-│   ├── auth/            # Auth helpers, session encryption, cookies
-│   ├── db/              # Prisma client initialization & DB access
-│   ├── finance/         # Financial calculations and domain logic
-│   ├── validations/     # Zod validation schemas
-│   └── utils/           # Utility functions (cn, formatters)
-├── types/               # TypeScript type definitions and interfaces
-└── constants/           # App-wide constants and default configs
+The database models are designed to be dynamic and scalar-independent:
 
-prisma/
-└── schema.prisma        # Prisma MongoDB schema definition
-```
+- **User**: Single user authentication entity (`id`, `email`, `passwordHash`).
+- **Category**: Dynamic income/expense categories linked to user (`userId`, `name`, `type`, `active`). Adding a category requires zero UI code changes.
+- **Transaction**: Immutable ledger entries (`userId`, `date`, `type`, `categoryId`, `amount`, `notes`).
+- **Budget**: Category-level monthly budgets (`userId`, `categoryId`, `month`, `amount`). Enforces unique `(userId, categoryId, month)`.
+- **RecurringTransaction**: Templates for periodic expenses/income (`frequency`, `startDate`, `endDate`, `active`, `recurrenceConfig`).
 
-## Getting Started
+Centralized database access modules reside in `src/lib/db/`:
+- `categories.ts`
+- `transactions.ts`
+- `budgets.ts`
+- `recurring.ts`
+- `user.ts`
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Database Setup & Seeding
 
-2. Copy `.env.example` to `.env` and fill in your configuration:
+1. **Environment Variables**:
+   Copy `.env.example` to `.env` and set your MongoDB connection string:
    ```bash
    cp .env.example .env
    ```
 
-3. Generate Prisma client:
+2. **Generate Prisma Client**:
    ```bash
    npx prisma generate
    ```
 
-4. Run development server:
+3. **Seed Database**:
+   Seed initial single user and default income/expense categories (Salary, Freelance, Groceries, Rent, Utilities, etc.):
    ```bash
-   npm run dev
+   npx prisma db seed
    ```
 
-5. Run type checking and linting:
-   ```bash
-   npm run type-check
-   npm run lint
-   ```
+   *Note: Custom initial user credentials can be set via `INITIAL_USER_EMAIL` and `INITIAL_USER_PASSWORD` in `.env` before running seed.*
+
+## Running Development Server
+
+```bash
+npm run dev # or pnpm dev
+```
+
+Run type checking and linting:
+```bash
+npm run type-check
+npm run lint
+```

@@ -1,0 +1,19 @@
+UI COMPONENT RULE:
+
+Use shadcn/ui as the primary component library.
+
+Before creating a custom UI component, check whether an appropriate shadcn/ui component already exists.
+
+Prefer composing shadcn/ui primitives rather than creating duplicate components.
+
+Use Tailwind CSS for styling and customization.
+
+Use Lucide React for icons.
+
+Do not introduce another UI component library.
+
+Keep generated shadcn primitives inside:
+
+src/components/ui/
+
+Keep application-specific components inside their respective feature folders.
