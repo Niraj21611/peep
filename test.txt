@@ -18,75 +18,127 @@ src/components/ui/
 
 Keep application-specific components inside their respective feature folders.
 
-Now implement the complete Category Management feature.
+Now implement the complete Transactions feature.
 
-The primary requirement is:
+Use the provided Excel Transactions screenshot as the functional reference.
 
-ADDING A NEW CATEGORY MUST NOT REQUIRE ANY CODE CHANGES TO THE DASHBOARD, TRANSACTIONS, BUDGETS, OR OTHER FEATURES.
+The current Excel transaction structure contains:
 
-Categories are database-driven.
+- Date
+- Day
+- Month
+- Type
+- Category
+- Amount
+- Notes
 
-FEATURES:
+Do NOT copy the spreadsheet UI literally.
 
-1. List categories
-2. Create category
-3. Edit category
-4. Activate/deactivate category
-5. Delete category where safe
-6. Filter by income/expense/both
-7. Prevent duplicate category names for the same user
+Build a proper modern finance transaction interface.
 
-CATEGORY TYPES:
+TRANSACTION TYPES:
 
 - INCOME
 - EXPENSE
-- BOTH
 
-The UI should clearly distinguish active and inactive categories.
+FIELDS:
 
-IMPORTANT DELETE RULE:
+- Date
+- Type
+- Category
+- Amount
+- Notes
 
-If a category is already referenced by transactions or budgets, do not blindly delete it.
+DAY AND MONTH:
 
-Instead:
+Do NOT store Day and Month as independent database fields.
 
-- either prevent deletion and explain why
-- or recommend deactivation
+They should be derived from the transaction date when displayed.
 
-Do not cause orphaned financial records.
+CATEGORY:
+
+Load categories dynamically from the database.
+
+Only show categories appropriate for the selected transaction type.
+
+AMOUNT:
+
+Use safe monetary handling.
+
+Do not use JavaScript floating point calculations for financial aggregation.
+
+FUNCTIONALITY:
+
+1. Add transaction
+2. Edit transaction
+3. Delete transaction
+4. List transactions
+5. Search transactions
+6. Filter by:
+   - date range
+   - type
+   - category
+7. Sort by date
+8. Pagination or efficient loading for larger datasets
+9. Empty state
+10. Loading state
+11. Error state
 
 SERVER ACTIONS:
 
-Create dedicated server actions for:
+Create server actions such as:
 
-- createCategory
-- updateCategory
-- toggleCategoryStatus
-- deleteCategory if safe
+- createTransaction
+- updateTransaction
+- deleteTransaction
 
-Validate all inputs with Zod.
+All actions must:
 
-DATABASE:
+- verify authentication
+- validate input with Zod
+- verify category ownership
+- verify transaction ownership
+- perform database operation
+- return safe structured results
 
-All category operations must be scoped to the authenticated user.
+Do not trust client-provided user IDs.
 
-UI:
+The authenticated session determines the user.
 
-Create a professional category management page.
+TRANSACTION TABLE:
 
-Include:
+Display something similar conceptually to:
 
-- category list/table
-- add category button
-- edit action
-- activate/deactivate action
-- appropriate confirmation dialog
-- empty state
+Date | Type | Category | Amount | Notes | Actions
 
-Do not hardcode the initial category list into React components.
+Use badges for Income/Expense.
 
-The database should be the source of truth.
+Add a clear "Add Transaction" button.
 
-After implementation, verify that creating a new category immediately makes it available wherever categories are selected.
+FORM:
+
+Use a reusable transaction form for both create and edit.
+
+The form should dynamically update the category options based on transaction type.
+
+Do not duplicate create/edit form code.
+
+After creating/updating/deleting a transaction, update the UI without requiring a full browser refresh where practical.
+
+Do not implement dashboard analytics yet.
+
+Do not implement recurring transaction generation yet.
+
+After implementation:
+
+- test income
+- test expense
+- test category selection
+- test validation
+- test edit
+- test delete
+- test filters
+- test ownership/security
+- run lint/typecheck/build
 
 STOP.
