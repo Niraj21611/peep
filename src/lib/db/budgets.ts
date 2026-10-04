@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { CategoryType, TransactionType, Category } from "@prisma/client";
 import { getBudgetStatus, BudgetStatus } from "@/constants/budget";
+import { roundMoney } from "@/lib/utils";
 
 export interface UpsertBudgetInput {
   userId: string;
@@ -36,7 +37,6 @@ export interface BudgetSummary {
  * Get budgets with dynamic actual spent calculations for a target month (YYYY-MM)
  */
 export async function getBudgetsWithCalculations(userId: string, month: string) {
-  // Parse month date bounds
   const [yearStr, monthStr] = month.split("-");
   const year = parseInt(yearStr || "2026", 10);
   const monthIdx = parseInt(monthStr || "10", 10) - 1;
@@ -79,31 +79,35 @@ export async function getBudgetsWithCalculations(userId: string, month: string) 
     },
   });
   const spentMap = new Map(
-    expenseAggregations.map((agg) => [agg.categoryId, agg._sum.amount || 0])
+    expenseAggregations.map((agg) => [agg.categoryId, roundMoney(agg._sum.amount || 0)])
   );
 
   // 4. Calculate dynamic category budget rows
-  let totalBudget = 0;
-  let totalSpent = 0;
+  let rawTotalBudget = 0;
+  let rawTotalSpent = 0;
   let overBudgetCount = 0;
   let nearLimitCount = 0;
 
   const categoryBudgets: CalculatedCategoryBudget[] = categories.map((category) => {
     const existingBudget = budgetMap.get(category.id);
-    const budgetAmount = existingBudget?.amount || 0;
-    const actualSpent = spentMap.get(category.id) || 0;
-    const remaining = budgetAmount - actualSpent;
+    const budgetAmount = roundMoney(existingBudget?.amount || 0);
+    const actualSpent = roundMoney(spentMap.get(category.id) || 0);
+    const remaining = roundMoney(budgetAmount - actualSpent);
 
     const percentUsed =
-      budgetAmount > 0 ? (actualSpent / budgetAmount) * 100 : actualSpent > 0 ? 100 : 0;
+      budgetAmount > 0
+        ? Math.round((actualSpent / budgetAmount) * 1000) / 10
+        : actualSpent > 0
+        ? 100
+        : 0;
 
     const status = getBudgetStatus(budgetAmount, percentUsed);
 
     if (status === "OVER_BUDGET") overBudgetCount++;
     if (status === "NEAR_LIMIT") nearLimitCount++;
 
-    totalBudget += budgetAmount;
-    totalSpent += actualSpent;
+    rawTotalBudget += budgetAmount;
+    rawTotalSpent += actualSpent;
 
     return {
       categoryId: category.id,
@@ -113,12 +117,14 @@ export async function getBudgetsWithCalculations(userId: string, month: string) 
       budgetAmount,
       actualSpent,
       remaining,
-      percentUsed: Math.round(percentUsed * 10) / 10,
+      percentUsed,
       status,
     };
   });
 
-  const totalRemaining = totalBudget - totalSpent;
+  const totalBudget = roundMoney(rawTotalBudget);
+  const totalSpent = roundMoney(rawTotalSpent);
+  const totalRemaining = roundMoney(totalBudget - totalSpent);
   const overallPercentUsed =
     totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 1000) / 10 : 0;
   const overallStatus = getBudgetStatus(totalBudget, overallPercentUsed);
@@ -146,7 +152,6 @@ export async function getBudgetsWithCalculations(userId: string, month: string) 
 export async function upsertBudget(input: UpsertBudgetInput) {
   const { userId, categoryId, month, amount } = input;
 
-  // Verify category ownership
   const category = await prisma.category.findFirst({
     where: { id: categoryId, userId },
   });
@@ -154,6 +159,8 @@ export async function upsertBudget(input: UpsertBudgetInput) {
   if (!category) {
     throw new Error("Invalid or unowned category selected.");
   }
+
+  const safeAmount = roundMoney(amount);
 
   return prisma.budget.upsert({
     where: {
@@ -164,13 +171,13 @@ export async function upsertBudget(input: UpsertBudgetInput) {
       },
     },
     update: {
-      amount,
+      amount: safeAmount,
     },
     create: {
       userId,
       categoryId,
       month,
-      amount,
+      amount: safeAmount,
     },
     include: {
       category: true,

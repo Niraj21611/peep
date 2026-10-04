@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { TransactionType } from "@prisma/client";
+import { roundMoney } from "@/lib/utils";
 
 export interface CreateTransactionInput {
   userId: string;
@@ -90,13 +91,13 @@ export async function getTransactionsByUserId(
 
   for (const group of aggregateSummary) {
     if (group.type === TransactionType.INCOME) {
-      totalIncome = group._sum.amount || 0;
+      totalIncome = roundMoney(group._sum.amount || 0);
     } else if (group.type === TransactionType.EXPENSE) {
-      totalExpense = group._sum.amount || 0;
+      totalExpense = roundMoney(group._sum.amount || 0);
     }
   }
 
-  const netBalance = totalIncome - totalExpense;
+  const netBalance = roundMoney(totalIncome - totalExpense);
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
   return {
@@ -127,7 +128,6 @@ export async function getTransactionById(id: string, userId: string) {
  * Create transaction (verifying category ownership)
  */
 export async function createTransaction(input: CreateTransactionInput) {
-  // Verify category exists and belongs to user
   const category = await prisma.category.findFirst({
     where: { id: input.categoryId, userId: input.userId },
   });
@@ -142,7 +142,7 @@ export async function createTransaction(input: CreateTransactionInput) {
       date: input.date,
       type: input.type,
       categoryId: input.categoryId,
-      amount: input.amount,
+      amount: roundMoney(input.amount),
       notes: input.notes?.trim(),
     },
     include: { category: true },
@@ -176,7 +176,10 @@ export async function updateTransaction(
 
   return prisma.transaction.update({
     where: { id, userId },
-    data,
+    data: {
+      ...data,
+      ...(data.amount !== undefined ? { amount: roundMoney(data.amount) } : {}),
+    },
     include: { category: true },
   });
 }

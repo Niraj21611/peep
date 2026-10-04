@@ -1,48 +1,34 @@
-import {
-  LayoutDashboard,
-  Receipt,
-  PieChart,
-  Tags,
-  Repeat,
-  LucideIcon,
-} from "lucide-react";
-
-export interface NavItem {
-  title: string;
-  href: string;
-  icon: LucideIcon;
-  description?: string;
-}
-
-export const MAIN_NAV_ITEMS: NavItem[] = [
+export const MAIN_NAV_ITEMS = [
   {
     title: "Dashboard",
     href: "/dashboard",
-    icon: LayoutDashboard,
+    icon: "LayoutDashboard",
     description: "Financial overview and analytical summary",
   },
   {
     title: "Transactions",
     href: "/transactions",
-    icon: Receipt,
+    icon: "Receipt",
     description: "Manage income, expenses, and ledger entries",
   },
   {
     title: "Budgets",
     href: "/budgets",
-    icon: PieChart,
+    icon: "PieChart",
     description: "Set and track category monthly spending limits",
   },
   {
     title: "Categories",
     href: "/categories",
-    icon: Tags,
+    icon: "Tags",
     description: "Manage dynamic income and expense categories",
   },
   {
     title: "Recurring Transactions",
     href: "/recurring",
-    icon: Repeat,
+    icon: "Repeat",
     description: "Manage periodic subscriptions and bill templates",
   },
-];
+] as const;
+
+export type NavItem = (typeof MAIN_NAV_ITEMS)[number];

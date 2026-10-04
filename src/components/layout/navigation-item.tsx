@@ -2,18 +2,41 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NavItem } from "@/constants/navigation";
+import {
+  LayoutDashboard,
+  Receipt,
+  PieChart,
+  Tags,
+  Repeat,
+} from "lucide-react";
+
+import type { NavItem } from "@/constants/navigation";
 import { cn } from "@/lib/utils";
+
+const iconMap = {
+  LayoutDashboard,
+  Receipt,
+  PieChart,
+  Tags,
+  Repeat,
+};
 
 interface NavigationItemProps {
   item: NavItem;
   onClick?: () => void;
 }
 
-export function NavigationItem({ item, onClick }: NavigationItemProps) {
+export function NavigationItem({
+  item,
+  onClick,
+}: NavigationItemProps) {
   const pathname = usePathname();
-  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-  const Icon = item.icon;
+
+  const isActive =
+    pathname === item.href ||
+    pathname.startsWith(`${item.href}/`);
+
+  const Icon = iconMap[item.icon];
 
   return (
     <Link
@@ -29,9 +52,12 @@ export function NavigationItem({ item, onClick }: NavigationItemProps) {
       <Icon
         className={cn(
           "h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110",
-          isActive ? "text-primary-foreground" : "text-slate-500 dark:text-slate-400 group-hover:text-foreground"
+          isActive
+            ? "text-primary-foreground"
+            : "text-slate-500 dark:text-slate-400 group-hover:text-foreground"
         )}
       />
+
       <span>{item.title}</span>
     </Link>
   );

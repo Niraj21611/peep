@@ -9,15 +9,23 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
+ * Safely round monetary numbers to 2 decimal places to prevent floating point precision issues
+ */
+export function roundMoney(amount: number): number {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+/**
  * Safely format monetary amount into currency string (e.g. ₹1,250.00 or $1,250.00)
  */
 export function formatCurrency(amount: number, currency = "INR", locale = "en-IN"): string {
+  const safeAmount = roundMoney(amount || 0);
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(safeAmount);
 }
 
 /**

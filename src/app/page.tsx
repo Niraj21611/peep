@@ -5,54 +5,60 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 export default function HomePage() {
   return (
-    <main className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-4xl w-full space-y-8 text-center">
+    <main className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50/50 dark:bg-slate-950">
+      <div className="max-w-4xl w-full space-y-10 text-center py-12">
         <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-            <ShieldCheck className="w-4 h-4" /> Single-User Private Finance Tracker
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-semibold tracking-wide uppercase">
+            <ShieldCheck className="w-4 h-4" /> Single-User Private Finance Portal
           </div>
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl text-foreground">
             Personal Finance Dashboard
           </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Take total control of your income, expenses, budgets, categories, and recurring transactions with full privacy and zero bloat.
+          <p className="text-muted-foreground text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+            Take total control of your cash flows, category budgets, recurring subscriptions, and ledger entries with full privacy and zero bloat.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-          <Card>
-            <CardHeader>
-              <Wallet className="w-8 h-8 text-primary mb-2" />
-              <CardTitle>Transactions</CardTitle>
-              <CardDescription>
-                Track every expense, income stream, and account balance in real-time.
+          <Card className="border shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="space-y-2">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary w-fit">
+                <Wallet className="w-6 h-6" />
+              </div>
+              <CardTitle className="text-lg">Transaction Ledger</CardTitle>
+              <CardDescription className="text-xs leading-relaxed">
+                Log and track every expense, income stream, and account balance in real-time.
               </CardDescription>
             </CardHeader>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <PieChart className="w-8 h-8 text-primary mb-2" />
-              <CardTitle>Budgets & Categories</CardTitle>
-              <CardDescription>
-                Set spending targets by category and monitor budget utilization effortlessy.
+          <Card className="border shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="space-y-2">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary w-fit">
+                <PieChart className="w-6 h-6" />
+              </div>
+              <CardTitle className="text-lg">Budgets & Categories</CardTitle>
+              <CardDescription className="text-xs leading-relaxed">
+                Set category spending limits and monitor budget utilization effortlessly.
               </CardDescription>
             </CardHeader>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <Repeat className="w-8 h-8 text-primary mb-2" />
-              <CardTitle>Recurring Expenses</CardTitle>
-              <CardDescription>
-                Automate regular subscriptions and recurring bill tracking.
+          <Card className="border shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="space-y-2">
+              <div className="p-2.5 rounded-lg bg-primary/10 text-primary w-fit">
+                <Repeat className="w-6 h-6" />
+              </div>
+              <CardTitle className="text-lg">Recurring Rules</CardTitle>
+              <CardDescription className="text-xs leading-relaxed">
+                Automate regular subscriptions, bill rules, and daily commute expenses.
               </CardDescription>
             </CardHeader>
           </Card>
         </div>
 
-        <div className="pt-4 flex justify-center gap-4">
-          <Button asChild size="lg" className="gap-2">
+        <div className="pt-2 flex justify-center gap-4">
+          <Button asChild size="lg" className="gap-2 shadow-md hover:shadow-lg transition-all">
             <Link href="/login">
               Go to Dashboard Login <ArrowRight className="w-4 h-4" />
             </Link>

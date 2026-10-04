@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { TransactionType, CategoryType } from "@prisma/client";
 import { getBudgetStatus, BudgetStatus } from "@/constants/budget";
+import { roundMoney } from "@/lib/utils";
 
 export interface DashboardSummaryData {
   totalIncome: number;
@@ -76,13 +77,13 @@ export async function getDashboardSummary(
 
   for (const group of aggregateSummary) {
     if (group.type === TransactionType.INCOME) {
-      totalIncome = group._sum.amount || 0;
+      totalIncome = roundMoney(group._sum.amount || 0);
     } else if (group.type === TransactionType.EXPENSE) {
-      totalExpense = group._sum.amount || 0;
+      totalExpense = roundMoney(group._sum.amount || 0);
     }
   }
 
-  const netSavings = totalIncome - totalExpense;
+  const netSavings = roundMoney(totalIncome - totalExpense);
   const savingsRate =
     totalIncome > 0 ? Math.max(0, Math.round((netSavings / totalIncome) * 1000) / 10) : 0;
 
@@ -131,13 +132,12 @@ export async function getExpensesByCategory(
   });
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
-  const totalExpense = expenseGroup.reduce(
-    (acc, g) => acc + (g._sum.amount || 0),
-    0
+  const totalExpense = roundMoney(
+    expenseGroup.reduce((acc, g) => acc + (g._sum.amount || 0), 0)
   );
 
   return expenseGroup.map((group) => {
-    const amount = group._sum.amount || 0;
+    const amount = roundMoney(group._sum.amount || 0);
     const percentage =
       totalExpense > 0 ? Math.round((amount / totalExpense) * 1000) / 10 : 0;
 
@@ -190,9 +190,9 @@ export async function getMonthlySummary(
 
     for (const group of aggregate) {
       if (group.type === TransactionType.INCOME) {
-        income = group._sum.amount || 0;
+        income = roundMoney(group._sum.amount || 0);
       } else if (group.type === TransactionType.EXPENSE) {
-        expense = group._sum.amount || 0;
+        expense = roundMoney(group._sum.amount || 0);
       }
     }
 
@@ -201,7 +201,7 @@ export async function getMonthlySummary(
       monthKey,
       income,
       expense,
-      net: income - expense,
+      net: roundMoney(income - expense),
     });
   }
 
@@ -247,7 +247,7 @@ export async function getDashboardHighlights(
     if (cat) {
       highestSpendingCategory = {
         name: cat.name,
-        amount: highestGroup[0]._sum.amount,
+        amount: roundMoney(highestGroup[0]._sum.amount),
       };
     }
   }
@@ -255,7 +255,7 @@ export async function getDashboardHighlights(
   const largestTransaction = largestTx
     ? {
         id: largestTx.id,
-        amount: largestTx.amount,
+        amount: roundMoney(largestTx.amount),
         type: largestTx.type,
         categoryName: largestTx.category.name,
         date: largestTx.date,
@@ -304,26 +304,28 @@ export async function getDashboardBudgetOverview(
     _sum: { amount: true },
   });
 
-  const budgetMap = new Map(budgets.map((b) => [b.categoryId, b.amount]));
-  const spentMap = new Map(spentGroup.map((s) => [s.categoryId, s._sum.amount || 0]));
+  const budgetMap = new Map(budgets.map((b) => [b.categoryId, roundMoney(b.amount)]));
+  const spentMap = new Map(spentGroup.map((s) => [s.categoryId, roundMoney(s._sum.amount || 0)]));
 
-  let totalBudget = 0;
-  let totalSpent = 0;
+  let rawTotalBudget = 0;
+  let rawTotalSpent = 0;
   let overBudgetCount = 0;
 
   for (const cat of categories) {
     const bAmt = budgetMap.get(cat.id) || 0;
     const sAmt = spentMap.get(cat.id) || 0;
 
-    totalBudget += bAmt;
-    totalSpent += sAmt;
+    rawTotalBudget += bAmt;
+    rawTotalSpent += sAmt;
 
     if (bAmt > 0 && sAmt > bAmt) {
       overBudgetCount++;
     }
   }
 
-  const totalRemaining = totalBudget - totalSpent;
+  const totalBudget = roundMoney(rawTotalBudget);
+  const totalSpent = roundMoney(rawTotalSpent);
+  const totalRemaining = roundMoney(totalBudget - totalSpent);
   const percentUsed =
     totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 1000) / 10 : 0;
   const status = getBudgetStatus(totalBudget, percentUsed);

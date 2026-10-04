@@ -14,13 +14,22 @@ export interface UpdateCategoryInput {
 }
 
 /**
- * Get all active categories for a user
+ * Get all categories for a user with usage statistics
  */
-export async function getCategoriesByUserId(userId: string, includeInactive = false) {
+export async function getCategoriesByUserId(userId: string, includeInactive = true) {
   return prisma.category.findMany({
     where: {
       userId,
       ...(includeInactive ? {} : { active: true }),
+    },
+    include: {
+      _count: {
+        select: {
+          transactions: true,
+          budgets: true,
+          recurringTransactions: true,
+        },
+      },
     },
     orderBy: { name: "asc" },
   });
@@ -32,6 +41,24 @@ export async function getCategoriesByUserId(userId: string, includeInactive = fa
 export async function getCategoryById(id: string, userId: string) {
   return prisma.category.findFirst({
     where: { id, userId },
+  });
+}
+
+/**
+ * Get transactions associated with a category
+ */
+export async function getCategoryTransactions(id: string, userId: string) {
+  return prisma.transaction.findMany({
+    where: { categoryId: id, userId },
+    select: {
+      id: true,
+      date: true,
+      type: true,
+      amount: true,
+      notes: true,
+    },
+    orderBy: { date: "desc" },
+    take: 50,
   });
 }
 
@@ -54,8 +81,52 @@ export async function createCategory(input: CreateCategoryInput) {
 export async function updateCategory(id: string, userId: string, data: UpdateCategoryInput) {
   return prisma.category.update({
     where: { id, userId },
-    data,
+    data: {
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+      ...(data.type !== undefined ? { type: data.type } : {}),
+      ...(data.active !== undefined ? { active: data.active } : {}),
+    },
   });
+}
+
+/**
+ * Delete a category if it has no associated transactions, budgets, or recurring rules
+ */
+export async function deleteCategory(id: string, userId: string) {
+  const transactions = await getCategoryTransactions(id, userId);
+
+  if (transactions.length > 0) {
+    return {
+      deleted: false,
+      reason: "HAS_TRANSACTIONS",
+      transactions,
+    };
+  }
+
+  const budgetCount = await prisma.budget.count({
+    where: { categoryId: id, userId },
+  });
+  const recurringCount = await prisma.recurringTransaction.count({
+    where: { categoryId: id, userId },
+  });
+
+  if (budgetCount > 0 || recurringCount > 0) {
+    return {
+      deleted: false,
+      reason: "HAS_DEPENDENCIES",
+      budgetCount,
+      recurringCount,
+      transactions: [],
+    };
+  }
+
+  await prisma.category.delete({
+    where: { id, userId },
+  });
+
+  return {
+    deleted: true,
+  };
 }
 
 /**

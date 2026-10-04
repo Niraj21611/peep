@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { COOKIE_SESSION_NAME } from "@/constants";
-import { verifyToken } from "@/lib/auth/session";
+import { verifyToken } from "@/lib/auth/token";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(COOKIE_SESSION_NAME)?.value;
   const isAuthenticated = token ? !!verifyToken(token) : false;
@@ -28,6 +28,8 @@ export function middleware(request: NextRequest) {
 
   return NextResponse.next();
 }
+
+export const middleware = proxy;
 
 export const config = {
   matcher: [
