@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useFormState, useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Category, CategoryType, TransactionType } from "@prisma/client";
@@ -77,18 +78,37 @@ export function TransactionFormDialog({
   templates: initialTemplates,
   initialTemplateId,
 }: TransactionFormDialogProps) {
+  const router = useRouter();
   const isEditing = !!transaction;
+  const transactionRef = useRef(transaction);
+  transactionRef.current = transaction;
 
   const initialState: ActionResponse = {
     success: false,
     message: "",
   };
 
-  const actionFn = isEditing
-    ? updateTransactionAction.bind(null, transaction.id)
-    : createTransactionAction;
+  const submitAction = async (
+    prevState: ActionResponse | null,
+    formData: FormData
+  ): Promise<ActionResponse> => {
+    const currentTx = transactionRef.current;
+    if (currentTx?.id) {
+      return await updateTransactionAction(currentTx.id, prevState, formData);
+    }
+    return await createTransactionAction(prevState, formData);
+  };
 
-  const [state, formAction] = useFormState(actionFn, initialState);
+  const [state, formAction] = useFormState(submitAction, initialState);
+
+  const localNow = new Date();
+  const localTodayUTC = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
+
+  const [date, setDate] = useState<string>(
+    transaction
+      ? formatDateForInput(transaction.date)
+      : formatDateForInput(localTodayUTC)
+  );
 
   const [type, setType] = useState<TransactionType>(
     transaction?.type || TransactionType.EXPENSE
@@ -133,6 +153,7 @@ export function TransactionFormDialog({
       setSelectedCategoryId(transaction.categoryId);
       setAmountInput(transaction.amountExpression || (transaction.amount ? String(transaction.amount) : ""));
       setNotes(transaction.notes || "");
+      setDate(formatDateForInput(transaction.date));
     } else {
       setType(TransactionType.EXPENSE);
       const matching = categories.filter(
@@ -141,11 +162,12 @@ export function TransactionFormDialog({
       setSelectedCategoryId(matching[0]?.id || "");
       setAmountInput("");
       setNotes("");
+      setDate(formatDateForInput(localTodayUTC));
       setSelectedTemplateId("");
       setSaveAsTemplate(false);
       setTemplateName("");
     }
-  }, [transaction, open, categories]);
+  }, [transaction, open]);
 
   // Handle initial preset template selection if provided
   useEffect(() => {
@@ -193,18 +215,12 @@ export function TransactionFormDialog({
     if (state.success) {
       toast.success(state.message);
       onOpenChange(false);
+      router.refresh();
     }
-  }, [state, onOpenChange]);
+  }, [state, onOpenChange, router]);
 
   // Live evaluation of amount chunks
   const evalResult = evaluateAmountChunks(amountInput);
-
-  const localNow = new Date();
-  const localTodayUTC = new Date(Date.UTC(localNow.getFullYear(), localNow.getMonth(), localNow.getDate()));
-
-  const defaultDateStr = transaction
-    ? formatDateForInput(transaction.date)
-    : formatDateForInput(localTodayUTC);
 
   const selectedTemplateName = availableTemplates.find((t) => t.id === selectedTemplateId)?.name;
 
@@ -384,7 +400,8 @@ export function TransactionFormDialog({
                     id="date"
                     name="date"
                     type="date"
-                    defaultValue={defaultDateStr}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
                     required
                     className="h-10 text-sm border-slate-200 dark:border-slate-800"
                   />

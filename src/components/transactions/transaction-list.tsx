@@ -566,8 +566,14 @@ export function TransactionList({
 
       {/* Transaction Edit/Create Form Dialog */}
       <TransactionFormDialog
+        key={formDialogOpen ? (editingTransaction ? `edit-${editingTransaction.id}` : "new-tx") : "closed"}
         open={formDialogOpen}
-        onOpenChange={setFormDialogOpen}
+        onOpenChange={(isOpen) => {
+          setFormDialogOpen(isOpen);
+          if (!isOpen) {
+            setEditingTransaction(null);
+          }
+        }}
         categories={categories}
         transaction={editingTransaction}
       />
@@ -575,7 +581,12 @@ export function TransactionList({
       {/* Transaction Delete Confirmation Modal */}
       <TransactionDeleteDialog
         open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        onOpenChange={(isOpen) => {
+          setDeleteDialogOpen(isOpen);
+          if (!isOpen) {
+            setDeletingTransaction(null);
+          }
+        }}
         transaction={deletingTransaction}
       />
     </div>

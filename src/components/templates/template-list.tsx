@@ -240,8 +240,14 @@ export function TemplateList({ templates, categories }: TemplateListProps) {
 
       {/* Quick Use Transaction Dialog */}
       <TransactionFormDialog
+        key={isUseDialogOpen ? `use-template-${activeTemplateId || "none"}` : "closed"}
         open={isUseDialogOpen}
-        onOpenChange={setIsUseDialogOpen}
+        onOpenChange={(open) => {
+          setIsUseDialogOpen(open);
+          if (!open) {
+            setActiveTemplateId(null);
+          }
+        }}
         categories={categories}
         templates={templates}
         initialTemplateId={activeTemplateId}

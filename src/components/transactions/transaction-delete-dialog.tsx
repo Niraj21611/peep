@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { deleteTransactionAction } from "@/actions/transactions";
 import { TransactionWithCategory } from "@/types";
@@ -28,6 +29,7 @@ export function TransactionDeleteDialog({
   open,
   onOpenChange,
 }: TransactionDeleteDialogProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   if (!transaction) return null;
@@ -41,6 +43,7 @@ export function TransactionDeleteDialog({
     if (result.success) {
       toast.success(result.message);
       onOpenChange(false);
+      router.refresh();
     } else {
       toast.error(result.message || "Failed to delete transaction.");
     }
