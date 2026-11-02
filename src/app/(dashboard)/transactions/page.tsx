@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/session";
 import { getTransactionsByUserId } from "@/lib/db/transactions";
 import { getCategoriesByUserId } from "@/lib/db/categories";
+import { getTripGroupsListByUserId } from "@/lib/db/trip-groups";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { TransactionType } from "@prisma/client";
 
@@ -69,7 +70,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const sortBy = params.sortBy === "amount" ? "amount" : "date";
   const sortOrder = params.sortOrder === "asc" ? "asc" : "desc";
 
-  const [transactionsData, categories] = await Promise.all([
+  const [transactionsData, categories, tripGroups] = await Promise.all([
     getTransactionsByUserId(user.id, {
       page,
       pageSize,
@@ -82,6 +83,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
       sortOrder,
     }),
     getCategoriesByUserId(user.id, true),
+    getTripGroupsListByUserId(user.id),
   ]);
 
   return (
@@ -98,7 +100,9 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
         initialSortOrder={sortOrder}
         defaultStartDate={startDateStr}
         defaultEndDate={endDateStr}
+        tripGroups={tripGroups}
       />
     </div>
   );
 }
+

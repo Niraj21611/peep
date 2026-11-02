@@ -9,6 +9,7 @@ import {
   Tags,
   Repeat,
   Copy,
+  Briefcase,
 } from "lucide-react";
 
 import type { NavItem } from "@/constants/navigation";
@@ -21,6 +22,7 @@ const iconMap = {
   Tags,
   Repeat,
   Copy,
+  Briefcase,
 };
 
 interface NavigationItemProps {

@@ -24,6 +24,12 @@ export const MAIN_NAV_ITEMS = [
     description: "Set and track category monthly spending limits",
   },
   {
+    title: "Trip Groups",
+    href: "/trip-groups",
+    icon: "Briefcase",
+    description: "Group transactions by trips and track spending",
+  },
+  {
     title: "Categories",
     href: "/categories",
     icon: "Tags",

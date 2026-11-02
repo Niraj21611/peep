@@ -10,6 +10,7 @@ import {
   getDerivedDayOfWeek,
   getDerivedMonthYear,
 } from "@/lib/utils";
+import { addTransactionsToTripGroupAction } from "@/actions/trip-groups";
 import { TransactionFormDialog } from "./transaction-form-dialog";
 import { TransactionDeleteDialog } from "./transaction-delete-dialog";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,17 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/layout/page-header";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Search,
   Plus,
@@ -38,7 +48,16 @@ import {
   ArrowDown,
   ArrowUpDown,
   Loader2,
+  CheckSquare,
+  Briefcase,
+  X,
 } from "lucide-react";
+
+interface TripGroupOption {
+  id: string;
+  name: string;
+  _count: { transactions: number };
+}
 
 interface TransactionListProps {
   transactions: TransactionWithCategory[];
@@ -56,6 +75,7 @@ interface TransactionListProps {
   };
   defaultStartDate?: string;
   defaultEndDate?: string;
+  tripGroups?: TripGroupOption[];
 }
 
 export function TransactionList({
@@ -70,6 +90,7 @@ export function TransactionList({
   summary,
   defaultStartDate,
   defaultEndDate,
+  tripGroups = [],
 }: TransactionListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,6 +102,13 @@ export function TransactionList({
   const [categoryFilter, setCategoryFilter] = useState(searchParams.get("categoryId") || "ALL");
   const [startDate, setStartDate] = useState(searchParams.get("startDate") || defaultStartDate || "");
   const [endDate, setEndDate] = useState(searchParams.get("endDate") || defaultEndDate || "");
+
+  // Multi-select State
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // Modal Dialog States
   const [formDialogOpen, setFormDialogOpen] = useState(false);
@@ -191,6 +219,27 @@ export function TransactionList({
         title="Transaction Ledger"
         description="Log, track, and filter all income and expense transactions. Derived Day and Month attributes are automatically formatted."
       >
+        {tripGroups.length > 0 && (
+          <Button
+            variant={selectMode ? "default" : "outline"}
+            onClick={() => {
+              if (selectMode) {
+                setSelectMode(false);
+                setSelectedIds(new Set());
+              } else {
+                setSelectMode(true);
+              }
+            }}
+            className={`gap-2 shrink-0 shadow-xs ${
+              selectMode
+                ? "bg-violet-600 hover:bg-violet-700 text-white"
+                : "border-violet-200 text-violet-600 hover:bg-violet-50"
+            }`}
+          >
+            <CheckSquare className="h-4 w-4" />
+            {selectMode ? "Cancel Select" : "Select"}
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={() => router.push("/transactions/import")}
@@ -369,6 +418,21 @@ export function TransactionList({
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50/80 dark:bg-slate-800/80 border-b-2 border-slate-300 dark:border-slate-700">
                   <tr>
+                    {selectMode && (
+                      <th className="py-3.5 px-3 w-10">
+                        <Checkbox
+                          checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedIds(new Set(transactions.map((tx) => tx.id)));
+                            } else {
+                              setSelectedIds(new Set());
+                            }
+                          }}
+                          aria-label="Select all"
+                        />
+                      </th>
+                    )}
                     <th 
                       className={`py-3.5 px-4 text-[11px] font-bold uppercase tracking-wider cursor-pointer select-none transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 ${initialSortBy === "date" ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}
                       onClick={() => handleSort("date")}
@@ -395,7 +459,33 @@ export function TransactionList({
                 </thead>
                 <tbody>
                   {transactions.map((tx) => (
-                    <tr key={tx.id} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors even:bg-slate-50 dark:even:bg-slate-900/50">
+                    <tr
+                      key={tx.id}
+                      className={`border-b border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors even:bg-slate-50 dark:even:bg-slate-900/50 ${selectMode && selectedIds.has(tx.id) ? "!bg-violet-50 dark:!bg-violet-500/10" : ""}`}
+                      onClick={selectMode ? () => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(tx.id)) { next.delete(tx.id); } else { next.add(tx.id); }
+                          return next;
+                        });
+                      } : undefined}
+                      style={selectMode ? { cursor: "pointer" } : undefined}
+                    >
+                      {selectMode && (
+                        <td className="py-3.5 px-3 w-10" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(tx.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (checked) { next.add(tx.id); } else { next.delete(tx.id); }
+                                return next;
+                              });
+                            }}
+                            aria-label={`Select transaction`}
+                          />
+                        </td>
+                      )}
                       <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
                         {formatDateDisplay(tx.date)}
                       </td>
@@ -563,6 +653,94 @@ export function TransactionList({
           </div>
         )}
       </Card>
+
+      {/* Multi-select Floating Action Bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="flex items-center gap-3 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl px-5 py-3 shadow-2xl border border-slate-700 dark:border-slate-300">
+            <Badge variant="secondary" className="bg-violet-500 text-white border-0 text-sm px-3 py-1">
+              {selectedIds.size} selected
+            </Badge>
+            <Button
+              size="sm"
+              onClick={() => {
+                setSelectedGroupId("");
+                setAssignDialogOpen(true);
+              }}
+              className="gap-2 bg-violet-600 hover:bg-violet-700 text-white border-0 shadow-none"
+            >
+              <Briefcase className="h-4 w-4" />
+              Add to Group
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-slate-300 dark:text-slate-600 hover:text-white dark:hover:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Assign to Trip Group Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-violet-500" />
+              Add to Trip Group
+            </DialogTitle>
+            <DialogDescription>
+              Add {selectedIds.size} selected transaction(s) to an existing trip group.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Group</label>
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a trip group..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tripGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name} ({g._count.transactions} transactions)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+            <Button
+              disabled={!selectedGroupId || isAssigning}
+              className="gap-2 bg-violet-600 hover:bg-violet-700"
+              onClick={async () => {
+                setIsAssigning(true);
+                const result = await addTransactionsToTripGroupAction(
+                  selectedGroupId,
+                  Array.from(selectedIds)
+                );
+                if (result.success) {
+                  setAssignDialogOpen(false);
+                  setSelectMode(false);
+                  setSelectedIds(new Set());
+                  startTransition(() => router.refresh());
+                }
+                setIsAssigning(false);
+              }}
+            >
+              {isAssigning && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add to Group
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Transaction Edit/Create Form Dialog */}
       <TransactionFormDialog

@@ -5,6 +5,8 @@ import {
   Budget,
   RecurringTransaction,
   TransactionTemplate,
+  TripGroup,
+  TripGroupBudget,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -17,6 +19,8 @@ export type {
   Budget,
   RecurringTransaction,
   TransactionTemplate,
+  TripGroup,
+  TripGroupBudget,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -44,3 +48,13 @@ export type RecurringTransactionWithCategory = RecurringTransaction & {
 export type TransactionTemplateWithCategory = TransactionTemplate & {
   category: Category;
 };
+
+export type TripGroupBudgetWithCategory = TripGroupBudget & {
+  category: Category;
+};
+
+export type TripGroupWithDetails = TripGroup & {
+  transactions: TransactionWithCategory[];
+  budgets: TripGroupBudgetWithCategory[];
+};
+
