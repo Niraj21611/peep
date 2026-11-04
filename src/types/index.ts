@@ -7,6 +7,8 @@ import {
   TransactionTemplate,
   TripGroup,
   TripGroupBudget,
+  TripGroupMember,
+  TripMemberExpense,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -21,6 +23,8 @@ export type {
   TransactionTemplate,
   TripGroup,
   TripGroupBudget,
+  TripGroupMember,
+  TripMemberExpense,
   CategoryType,
   TransactionType,
   RecurrenceFrequency,
@@ -53,8 +57,19 @@ export type TripGroupBudgetWithCategory = TripGroupBudget & {
   category: Category;
 };
 
+export type TripMemberExpenseWithDetails = TripMemberExpense & {
+  member: TripGroupMember;
+  category: Category;
+};
+
+export type TripGroupMemberWithExpenses = TripGroupMember & {
+  expenses: TripMemberExpense[];
+};
+
 export type TripGroupWithDetails = TripGroup & {
   transactions: TransactionWithCategory[];
   budgets: TripGroupBudgetWithCategory[];
+  members: TripGroupMemberWithExpenses[];
+  memberExpenses: TripMemberExpenseWithDetails[];
 };
 

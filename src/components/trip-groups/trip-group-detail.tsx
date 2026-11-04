@@ -2,8 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Category, TransactionType } from "@prisma/client";
-import { TripGroupWithDetails, TransactionWithCategory, TripGroupBudgetWithCategory } from "@/types";
+import {
+  TripGroupWithDetails,
+  TransactionWithCategory,
+  TripGroupBudgetWithCategory,
+  TripGroupMemberWithExpenses,
+  TripMemberExpenseWithDetails,
+} from "@/types";
 import { cn, formatCurrency, formatDateDisplay, formatDateForInput } from "@/lib/utils";
 import {
   updateTripGroupAction,
@@ -11,12 +18,23 @@ import {
   removeTransactionFromTripGroupAction,
   upsertTripGroupBudgetAction,
   deleteTripGroupBudgetAction,
+  addTripGroupMemberAction,
+  deleteTripGroupMemberAction,
+  createTripExpenseAction,
+  updateTripMemberExpenseAction,
+  deleteTripMemberExpenseAction,
 } from "@/actions/trip-groups";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +71,8 @@ import {
   AlertTriangle,
   AlertCircle,
   Users,
+  User,
+  UserPlus,
 } from "lucide-react";
 
 interface TripGroupDetailProps {
@@ -60,65 +80,141 @@ interface TripGroupDetailProps {
   categories: Category[];
 }
 
+interface UnifiedExpense {
+  id: string;
+  source: "PERSONAL" | "MEMBER";
+  date: Date;
+  payerName: string;
+  payerId: string; // "ME" or member.id
+  isMe: boolean;
+  categoryName: string;
+  categoryId: string;
+  amount: number;
+  type: TransactionType;
+  notes: string | null;
+  rawTx?: TransactionWithCategory;
+  rawMemberExpense?: TripMemberExpenseWithDetails;
+}
+
 export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
-  // Edit dialog
+  // Basic trip dialogs
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
-
-  // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Remove transaction dialog
+  // Unlink personal transaction dialog
   const [removeTxDialogOpen, setRemoveTxDialogOpen] = useState(false);
   const [removingTx, setRemovingTx] = useState<TransactionWithCategory | null>(null);
 
-  // Budget dialog
+  // Budget dialogs
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [selectedBudgetCategory, setSelectedBudgetCategory] = useState<string>("");
-
-  // Delete budget dialog
   const [deleteBudgetDialogOpen, setDeleteBudgetDialogOpen] = useState(false);
   const [deletingBudget, setDeletingBudget] = useState<TripGroupBudgetWithCategory | null>(null);
 
+  // Member Management dialogs
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
+  const [deleteMemberDialogOpen, setDeleteMemberDialogOpen] = useState(false);
+  const [deletingMember, setDeletingMember] = useState<TripGroupMemberWithExpenses | null>(null);
+
+  // Expense Management dialogs (Unified Add, Member Edit/Delete)
+  const [addExpenseDialogOpen, setAddExpenseDialogOpen] = useState(false);
+  const [addExpenseError, setAddExpenseError] = useState<string | null>(null);
+  const [expensePayer, setExpensePayer] = useState<string>("ME");
+  const [expenseCategory, setExpenseCategory] = useState<string>("");
+
+  const [editMemberExpenseDialogOpen, setEditMemberExpenseDialogOpen] = useState(false);
+  const [editingMemberExpense, setEditingMemberExpense] = useState<TripMemberExpenseWithDetails | null>(null);
+  const [editExpenseError, setEditExpenseError] = useState<string | null>(null);
+  const [editExpensePayer, setEditExpensePayer] = useState<string>("");
+  const [editExpenseCategory, setEditExpenseCategory] = useState<string>("");
+
+  const [deleteMemberExpenseDialogOpen, setDeleteMemberExpenseDialogOpen] = useState(false);
+  const [deletingMemberExpense, setDeletingMemberExpense] = useState<TripMemberExpenseWithDetails | null>(null);
+
+  // Filter state for transactions list: "ALL" | "ME" | memberId
+  const [txFilter, setTxFilter] = useState<string>("ALL");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Compute statistics
-  let totalExpense = 0;
-  const expenseByCategory: Record<string, { name: string; amount: number }> = {};
-  const spenderBreakdown: Record<string, number> = {};
+  // --- Calculations & Aggregations ---
+  const members = tripGroup.members || [];
+  const memberExpenses = tripGroup.memberExpenses || [];
 
+  let myTotalExpense = 0;
+  let myTotalIncome = 0;
+  const expenseByCategory: Record<string, { name: string; amount: number }> = {};
+  const spenderTotals: Record<string, { name: string; amount: number; isMe: boolean }> = {};
+
+  // 1. My Personal Ledger Transactions linked to this group
   for (const tx of tripGroup.transactions) {
     if (tx.type === TransactionType.EXPENSE) {
-      totalExpense += tx.amount;
-
-      // Category breakdown for budgets
+      myTotalExpense += tx.amount;
       const existing = expenseByCategory[tx.categoryId];
       if (existing) {
         existing.amount += tx.amount;
       } else {
         expenseByCategory[tx.categoryId] = { name: tx.category.name, amount: tx.amount };
       }
-    }
-
-    // Notes-based spender breakdown (if notes contain "Paid by: <name>" or similar)
-    if (tx.notes) {
-      const paidByMatch = tx.notes.match(/paid\s+by[:\s]+(.+)/i);
-      if (paidByMatch && paidByMatch[1]) {
-        const spender = paidByMatch[1].trim();
-        spenderBreakdown[spender] = (spenderBreakdown[spender] ?? 0) + tx.amount;
-      }
+    } else if (tx.type === TransactionType.INCOME) {
+      myTotalIncome += tx.amount;
     }
   }
 
-  const totalBudget = tripGroup.budgets.reduce((sum, b) => sum + b.amount, 0);
-  const budgetUtilization = totalBudget > 0 ? (totalExpense / totalBudget) * 100 : 0;
-  const totalRemaining = totalBudget - totalExpense;
+  spenderTotals["ME"] = {
+    name: "You (Trip Organizer)",
+    amount: myTotalExpense,
+    isMe: true,
+  };
 
-  // Build budget vs actual data
+  // 2. Member Expenses (added specifically for this trip, isolated from personal ledger)
+  let membersTotalExpense = 0;
+  for (const me of memberExpenses) {
+    membersTotalExpense += me.amount;
+
+    const existing = expenseByCategory[me.categoryId];
+    if (existing) {
+      existing.amount += me.amount;
+    } else {
+      expenseByCategory[me.categoryId] = { name: me.category.name, amount: me.amount };
+    }
+
+    const existingSpender = spenderTotals[me.memberId];
+    if (!existingSpender) {
+      spenderTotals[me.memberId] = {
+        name: me.member.name,
+        amount: me.amount,
+        isMe: false,
+      };
+    } else {
+      existingSpender.amount += me.amount;
+    }
+  }
+
+  // Ensure all members appear in breakdown even if they haven't spent yet
+  for (const m of members) {
+    if (!spenderTotals[m.id]) {
+      spenderTotals[m.id] = {
+        name: m.name,
+        amount: 0,
+        isMe: false,
+      };
+    }
+  }
+
+  // Combined totals
+  const totalCombinedExpense = myTotalExpense + membersTotalExpense;
+  const totalTransactionsCount = tripGroup.transactions.length + memberExpenses.length;
+
+  const totalBudget = tripGroup.budgets.reduce((sum, b) => sum + b.amount, 0);
+  const budgetUtilization = totalBudget > 0 ? (totalCombinedExpense / totalBudget) * 100 : 0;
+  const totalRemaining = totalBudget - totalCombinedExpense;
+
+  // Build budget vs actual comparing combined spending per category
   const budgetVsActual = tripGroup.budgets.map((b) => {
     const actual = expenseByCategory[b.categoryId]?.amount || 0;
     const percentage = b.amount > 0 ? (actual / b.amount) * 100 : 0;
@@ -133,10 +229,13 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
     };
   });
 
-  // Categories already used in budgets
   const budgetedCategoryIds = new Set(tripGroup.budgets.map((b) => b.categoryId));
   const availableBudgetCategories = categories.filter(
     (c) => !budgetedCategoryIds.has(c.id) && (c.type === "EXPENSE" || c.type === "BOTH")
+  );
+
+  const expenseCategories = categories.filter(
+    (c) => c.type === "EXPENSE" || c.type === "BOTH"
   );
 
   // Status badge helper
@@ -174,9 +273,46 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
     };
   };
 
-  // --- Handlers ---
+  // Build Unified Expenses list
+  const unifiedExpenses: UnifiedExpense[] = [
+    ...tripGroup.transactions.map((tx) => ({
+      id: tx.id,
+      source: "PERSONAL" as const,
+      date: new Date(tx.date),
+      payerName: "You",
+      payerId: "ME",
+      isMe: true,
+      categoryName: tx.category.name,
+      categoryId: tx.categoryId,
+      amount: tx.amount,
+      type: tx.type,
+      notes: tx.notes,
+      rawTx: tx,
+    })),
+    ...memberExpenses.map((me) => ({
+      id: me.id,
+      source: "MEMBER" as const,
+      date: new Date(me.date),
+      payerName: me.member.name,
+      payerId: me.memberId,
+      isMe: false,
+      categoryName: me.category.name,
+      categoryId: me.categoryId,
+      amount: me.amount,
+      type: TransactionType.EXPENSE,
+      notes: me.notes,
+      rawMemberExpense: me,
+    })),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
-  const handleEdit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const filteredExpenses = unifiedExpenses.filter((e) => {
+    if (txFilter === "ALL") return true;
+    if (txFilter === "ME") return e.isMe;
+    return e.payerId === txFilter;
+  });
+
+  // --- Action Handlers ---
+  const handleEditTrip = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setEditError(null);
@@ -186,6 +322,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
 
     if (result.success) {
       setEditDialogOpen(false);
+      toast.success(result.message);
       startTransition(() => router.refresh());
     } else {
       setEditError(result.message || "Failed to update.");
@@ -193,24 +330,30 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
     setIsSubmitting(false);
   };
 
-  const handleDelete = async () => {
+  const handleDeleteTrip = async () => {
     setIsSubmitting(true);
     const result = await deleteTripGroupAction(tripGroup.id);
     if (result.success) {
+      toast.success(result.message);
       router.push("/trip-groups");
+    } else {
+      toast.error(result.message);
     }
     setIsSubmitting(false);
   };
 
-  const handleRemoveTransaction = async () => {
+  const handleRemovePersonalTransaction = async () => {
     if (!removingTx) return;
     setIsSubmitting(true);
 
     const result = await removeTransactionFromTripGroupAction(removingTx.id);
     if (result.success) {
+      toast.success(result.message);
       setRemoveTxDialogOpen(false);
       setRemovingTx(null);
       startTransition(() => router.refresh());
+    } else {
+      toast.error(result.message);
     }
     setIsSubmitting(false);
   };
@@ -232,6 +375,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
     if (result.success) {
       setBudgetDialogOpen(false);
       setSelectedBudgetCategory("");
+      toast.success(result.message);
       startTransition(() => router.refresh());
     } else {
       setBudgetError(result.message || "Failed to add budget.");
@@ -247,18 +391,133 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
     if (result.success) {
       setDeleteBudgetDialogOpen(false);
       setDeletingBudget(null);
+      toast.success(result.message);
       startTransition(() => router.refresh());
+    } else {
+      toast.error(result.message);
     }
     setIsSubmitting(false);
   };
 
+  const handleAddMember = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setAddMemberError(null);
+
+    const formData = new FormData(e.currentTarget);
+    const result = await addTripGroupMemberAction(tripGroup.id, formData);
+
+    if (result.success) {
+      setAddMemberDialogOpen(false);
+      toast.success(result.message);
+      startTransition(() => router.refresh());
+    } else {
+      setAddMemberError(result.message || "Failed to add member.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleDeleteMember = async () => {
+    if (!deletingMember) return;
+    setIsSubmitting(true);
+
+    const result = await deleteTripGroupMemberAction(deletingMember.id, tripGroup.id);
+    if (result.success) {
+      setDeleteMemberDialogOpen(false);
+      setDeletingMember(null);
+      toast.success(result.message);
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.message);
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleAddExpense = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setAddExpenseError(null);
+
+    const formData = new FormData(e.currentTarget);
+    formData.set("payer", expensePayer);
+    formData.set("categoryId", expenseCategory);
+
+    const result = await createTripExpenseAction(tripGroup.id, formData);
+
+    if (result.success) {
+      setAddExpenseDialogOpen(false);
+      setExpenseCategory("");
+      toast.success(result.message);
+      startTransition(() => router.refresh());
+    } else {
+      setAddExpenseError(result.message || "Failed to record expense.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleOpenEditMemberExpense = (item: TripMemberExpenseWithDetails) => {
+    setEditingMemberExpense(item);
+    setEditExpensePayer(item.memberId);
+    setEditExpenseCategory(item.categoryId);
+    setEditExpenseError(null);
+    setEditMemberExpenseDialogOpen(true);
+  };
+
+  const handleUpdateMemberExpense = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingMemberExpense) return;
+    setIsSubmitting(true);
+    setEditExpenseError(null);
+
+    const formData = new FormData(e.currentTarget);
+    formData.set("memberId", editExpensePayer);
+    formData.set("categoryId", editExpenseCategory);
+
+    const result = await updateTripMemberExpenseAction(
+      editingMemberExpense.id,
+      tripGroup.id,
+      formData
+    );
+
+    if (result.success) {
+      setEditMemberExpenseDialogOpen(false);
+      setEditingMemberExpense(null);
+      toast.success(result.message);
+      startTransition(() => router.refresh());
+    } else {
+      setEditExpenseError(result.message || "Failed to update expense.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleDeleteMemberExpense = async () => {
+    if (!deletingMemberExpense) return;
+    setIsSubmitting(true);
+
+    const result = await deleteTripMemberExpenseAction(
+      deletingMemberExpense.id,
+      tripGroup.id
+    );
+
+    if (result.success) {
+      setDeleteMemberExpenseDialogOpen(false);
+      setDeletingMemberExpense(null);
+      toast.success(result.message);
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.message);
+    }
+    setIsSubmitting(false);
+  };
+
+  const todayStr = formatDateForInput(new Date());
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* 1. Header Card */}
       <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            {/* Back button */}
             <Button
               variant="outline"
               size="icon"
@@ -268,12 +527,10 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
               <ArrowLeft className="h-4 w-4" />
             </Button>
 
-            {/* Briefcase Icon */}
             <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
               <Briefcase className="h-5 w-5" />
             </div>
 
-            {/* Group Info */}
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
@@ -301,8 +558,32 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
             </div>
           </div>
 
-          {/* Right: Edit & Delete buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              onClick={() => {
+                setAddExpenseError(null);
+                setExpensePayer("ME");
+                setExpenseCategory(expenseCategories[0]?.id || "");
+                setAddExpenseDialogOpen(true);
+              }}
+              className="gap-1.5 h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-xs"
+            >
+              <Plus className="h-4 w-4" /> Add Expense
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAddMemberError(null);
+                setAddMemberDialogOpen(true);
+              }}
+              className="gap-1.5 h-9 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium shadow-xs"
+            >
+              <UserPlus className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" /> Add Member
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -314,6 +595,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
             >
               <Pencil className="h-3.5 w-3.5 text-slate-500" /> Edit
             </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -326,9 +608,9 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
         </div>
       </div>
 
-      {/* 2. Top Metric Cards (4 Grid) */}
+      {/* 2. Top Metric KPI Cards (4 Grid) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Trip Spent */}
+        {/* Total Trip Spent (Combined) */}
         <div className="rounded-2xl border border-rose-100 dark:border-rose-900/40 bg-gradient-to-br from-rose-50/40 via-white to-white dark:from-rose-950/20 dark:via-slate-900 dark:to-slate-900 p-5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-100/80 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">
@@ -336,11 +618,26 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
             </span>
             <span className="w-2 h-2 rounded-full bg-rose-400" />
           </div>
+
           <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
-            {formatCurrency(totalExpense)}
+            {formatCurrency(totalCombinedExpense)}
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
-            {tripGroup.transactions.length} {tripGroup.transactions.length === 1 ? "transaction" : "transactions"} recorded
+
+          {/* User's portion clearly distinguished below total */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+              My spending: {formatCurrency(myTotalExpense)}
+            </span>
+            {membersTotalExpense > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800">
+                Members: {formatCurrency(membersTotalExpense)}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            {totalTransactionsCount} {totalTransactionsCount === 1 ? "transaction" : "transactions"} combined
           </p>
         </div>
 
@@ -355,8 +652,8 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
           <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">
             {formatCurrency(totalBudget)}
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
-            Allocated across categories
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Allocated across {tripGroup.budgets.length} categories
           </p>
         </div>
 
@@ -373,9 +670,9 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
           <div className="mt-3 text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
             {formatCurrency(totalRemaining)}
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
             {totalBudget > 0
-              ? `${Math.max(0, Math.round(((totalBudget - totalExpense) / totalBudget) * 100))}% available to spend`
+              ? `${Math.max(0, Math.round(((totalBudget - totalCombinedExpense) / totalBudget) * 100))}% available`
               : "No budget set"}
           </p>
         </div>
@@ -423,9 +720,152 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
         </div>
       </div>
 
-      {/* 3. Budget vs Actual Section */}
+      {/* 3. Trip Members / Companions Section */}
       <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-        {/* Card Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">Trip Members & Companions</h2>
+                <Badge variant="secondary" className="text-xs font-semibold">
+                  {members.length + 1} People
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-400 font-normal">
+                Manage members and record expenses paid by each person without mixing into your personal ledger
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setAddMemberError(null);
+              setAddMemberDialogOpen(true);
+            }}
+            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm px-3.5 py-2 flex items-center gap-1.5 shadow-xs shrink-0"
+          >
+            <UserPlus className="h-4 w-4" /> Add Member
+          </Button>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* 1. Trip Organizer (You) Card */}
+            <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/20 dark:bg-indigo-950/10 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                    YOU
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">You</h4>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                      Trip Organizer
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-indigo-100/60 dark:border-indigo-900/30 flex items-center justify-between text-xs">
+                <span className="text-slate-500 dark:text-slate-400">Total Spent:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  {formatCurrency(myTotalExpense)}
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAddExpenseError(null);
+                  setExpensePayer("ME");
+                  setExpenseCategory(expenseCategories[0]?.id || "");
+                  setAddExpenseDialogOpen(true);
+                }}
+                className="w-full text-xs h-8 rounded-lg border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add My Expense
+              </Button>
+            </div>
+
+            {/* 2. Added Members Cards */}
+            {members.map((m) => {
+              const mExpenses = memberExpenses.filter((e) => e.memberId === m.id);
+              const mTotal = mExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+              return (
+                <div
+                  key={m.id}
+                  className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-full bg-purple-100 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 flex items-center justify-center text-xs font-bold shadow-xs">
+                        {m.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">{m.name}</h4>
+                        {m.email ? (
+                          <span className="text-[11px] text-slate-400 block truncate max-w-[150px]">{m.email}</span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 font-medium">Trip Member</span>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setDeletingMember(m);
+                        setDeleteMemberDialogOpen(true);
+                      }}
+                      className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                      title={`Remove ${m.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Spent ({mExpenses.length} {mExpenses.length === 1 ? "expense" : "expenses"}):
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      {formatCurrency(mTotal)}
+                    </span>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAddExpenseError(null);
+                      setExpensePayer(m.id);
+                      setExpenseCategory(expenseCategories[0]?.id || "");
+                      setAddExpenseDialogOpen(true);
+                    }}
+                    className="w-full text-xs h-8 rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Expense for {m.name}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          {members.length === 0 && (
+            <div className="mt-2 p-3.5 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Traveling with friends? Click <strong>&quot;Add Member&quot;</strong> above to log transactions made by other users and view combined trip expenditures.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 4. Budget vs Actual Section */}
+      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
@@ -436,7 +876,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
               {Math.round(budgetUtilization)}% utilized
             </span>
             <span className="text-xs text-slate-400 font-normal hidden sm:inline">
-              • Compare category allocations with current expenses
+              • Compares combined category spending targets against all recorded expenses
             </span>
           </div>
           <Button
@@ -452,7 +892,6 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
           </Button>
         </div>
 
-        {/* Budget Table */}
         {budgetVsActual.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -561,40 +1000,88 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
         )}
       </div>
 
-      {/* 4. Transactions Section */}
+      {/* 5. Trip Transactions Section (Unified) */}
       <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-        {/* Card Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-violet-100 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
               <Receipt className="h-4 w-4" />
             </div>
-            <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">Transactions</h2>
-            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold flex items-center justify-center">
-              {tripGroup.transactions.length}
-            </span>
-            <span className="text-xs text-slate-400 font-normal hidden sm:inline">
-              • Itemized logs of all travel expenditures
+            <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">Trip Expenses & Ledger</h2>
+            <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold flex items-center justify-center">
+              {unifiedExpenses.length}
             </span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/transactions")}
-            className="rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs sm:text-sm px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 shadow-xs shrink-0"
-          >
-            <Plus className="h-4 w-4" /> Add Transaction
-          </Button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filter Pills */}
+            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/50 dark:bg-slate-800/40 text-xs">
+              <button
+                onClick={() => setTxFilter("ALL")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md font-medium transition-colors",
+                  txFilter === "ALL"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                )}
+              >
+                All ({unifiedExpenses.length})
+              </button>
+              <button
+                onClick={() => setTxFilter("ME")}
+                className={cn(
+                  "px-2.5 py-1 rounded-md font-medium transition-colors",
+                  txFilter === "ME"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                )}
+              >
+                You ({tripGroup.transactions.length})
+              </button>
+              {members.map((m) => {
+                const count = memberExpenses.filter((e) => e.memberId === m.id).length;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setTxFilter(m.id)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-colors",
+                      txFilter === m.id
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs font-semibold"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                    )}
+                  >
+                    {m.name} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Add Expense Button */}
+            <Button
+              size="sm"
+              onClick={() => {
+                setAddExpenseError(null);
+                setExpensePayer(txFilter !== "ALL" ? txFilter : "ME");
+                setExpenseCategory(expenseCategories[0]?.id || "");
+                setAddExpenseDialogOpen(true);
+              }}
+              className="rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm px-3.5 py-1.5 flex items-center gap-1.5 shadow-xs"
+            >
+              <Plus className="h-4 w-4" /> Add Expense
+            </Button>
+          </div>
         </div>
 
-        {/* Transactions Table */}
-        {tripGroup.transactions.length > 0 ? (
+        {/* Unified Table */}
+        {filteredExpenses.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/20">
                   <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">DATE</th>
-                  <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">TYPE</th>
+                  <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">PAID BY</th>
                   <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">CATEGORY</th>
                   <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">AMOUNT</th>
                   <th className="py-3.5 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">NOTES</th>
@@ -602,23 +1089,24 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {tripGroup.transactions.map((tx) => (
+                {filteredExpenses.map((item) => (
                   <tr
-                    key={tx.id}
+                    key={`${item.source}-${item.id}`}
                     className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="py-3.5 px-5 font-medium text-sm text-slate-900 dark:text-slate-100">
-                      {formatDateDisplay(tx.date)}
+                      {formatDateDisplay(item.date)}
                     </td>
 
+                    {/* Paid By Column with Distinct Badges */}
                     <td className="py-3.5 px-5">
-                      {tx.type === TransactionType.INCOME ? (
-                        <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400">
-                          Income
+                      {item.isMe ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 dark:bg-indigo-950/40 dark:text-indigo-400">
+                          <User className="h-3 w-3" /> You (Mine)
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100 dark:bg-rose-950/40 dark:text-rose-400">
-                          Expense
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/80 dark:bg-purple-950/40 dark:text-purple-400">
+                          <Users className="h-3 w-3" /> {item.payerName}
                         </span>
                       )}
                     </td>
@@ -626,32 +1114,62 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
                     <td className="py-3.5 px-5">
                       <div className="flex items-center gap-1.5 font-medium text-sm text-slate-900 dark:text-slate-100">
                         <span className="w-2 h-2 rounded-full bg-indigo-600 shrink-0" />
-                        <span>{tx.category.name}</span>
+                        <span>{item.categoryName}</span>
                       </div>
                     </td>
 
                     <td className="py-3.5 px-5 font-bold text-sm text-rose-500 dark:text-rose-400">
-                      {tx.type === TransactionType.INCOME ? "+" : "-"}
-                      {formatCurrency(tx.amount)}
+                      {item.type === TransactionType.INCOME ? "+" : "-"}
+                      {formatCurrency(item.amount)}
                     </td>
 
                     <td className="py-3.5 px-5 text-sm text-slate-400 max-w-[200px] truncate">
-                      {tx.notes || "—"}
+                      {item.notes || "—"}
                     </td>
 
                     <td className="py-3.5 px-5 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setRemovingTx(tx);
-                          setRemoveTxDialogOpen(true);
-                        }}
-                        className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
-                        title="Remove from group"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        {item.source === "MEMBER" && item.rawMemberExpense ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenEditMemberExpense(item.rawMemberExpense!)}
+                              className="h-8 w-8 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                              title="Edit expense"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setDeletingMemberExpense(item.rawMemberExpense!);
+                                setDeleteMemberExpenseDialogOpen(true);
+                              }}
+                              className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                              title="Delete expense"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (item.rawTx) {
+                                setRemovingTx(item.rawTx);
+                                setRemoveTxDialogOpen(true);
+                              }
+                            }}
+                            className="h-8 w-8 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                            title="Unlink from trip group"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -659,58 +1177,408 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
             </table>
           </div>
         ) : (
-          <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400">
-            <Receipt className="h-8 w-8 mx-auto mb-2 text-slate-300 dark:text-slate-600" />
-            <p className="font-medium">No transactions in this trip yet.</p>
-            <p className="text-xs text-slate-400 mt-1">
-              Select transactions from the Transactions page and add them to this group.
+          <div className="py-12 text-center text-sm text-slate-500 dark:text-slate-400 space-y-2">
+            <Receipt className="h-8 w-8 mx-auto text-slate-300 dark:text-slate-600" />
+            <p className="font-medium">No transactions match this filter.</p>
+            <p className="text-xs text-slate-400">
+              Click &quot;Add Expense&quot; above to log an expense for yourself or a member.
             </p>
           </div>
         )}
       </div>
 
-      {/* 5. Spender Breakdown (if "Paid by: <name>" is present in transaction notes) */}
-      {Object.keys(spenderBreakdown).length > 0 && (
-        <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-violet-500" />
-              <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">Spending by Person</h2>
-              <Badge variant="secondary" className="text-[10px] ml-1">
-                From &quot;Paid by:&quot; in notes
-              </Badge>
-            </div>
+      {/* 6. Spender Breakdown Card */}
+      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-indigo-600" />
+            <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">Spending by Person</h2>
           </div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {Object.entries(spenderBreakdown)
-              .sort(([, a], [, b]) => b - a)
-              .map(([name, amount]) => (
-                <div key={name} className="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 flex items-center justify-center text-xs font-bold">
-                      {name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{name}</span>
-                  </div>
-                  <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{formatCurrency(amount)}</span>
-                </div>
-              ))}
-          </div>
+          <span className="text-xs text-slate-400 font-medium">
+            Combined Total: {formatCurrency(totalCombinedExpense)}
+          </span>
         </div>
-      )}
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {Object.entries(spenderTotals)
+            .sort(([, a], [, b]) => b.amount - a.amount)
+            .map(([key, item]) => {
+              const percent = totalCombinedExpense > 0 ? Math.round((item.amount / totalCombinedExpense) * 100) : 0;
 
-      {/* Edit Dialog */}
+              return (
+                <div
+                  key={key}
+                  className="p-4 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shadow-xs",
+                        item.isMe
+                          ? "bg-indigo-600 text-white"
+                          : "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                      )}
+                    >
+                      {item.isMe ? "YOU" : item.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                          {item.name}
+                        </span>
+                        {item.isMe && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-sm bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-semibold">
+                            You
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="w-24 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full", item.isMe ? "bg-indigo-600" : "bg-purple-600")}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">{percent}% of total</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                    {formatCurrency(item.amount)}
+                  </span>
+                </div>
+              );
+            })}
+        </div>
+      </div>
+
+      {/* --- Dialogs --- */}
+
+      {/* 1. Add Expense Dialog (for You or any member) */}
+      <Dialog open={addExpenseDialogOpen} onOpenChange={setAddExpenseDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-indigo-600" />
+              Add Trip Expense
+            </DialogTitle>
+            <DialogDescription>
+              Record an expense paid for this trip by you or another member. Member expenses are kept separate from your personal ledger.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddExpense} className="space-y-4 pt-1">
+            {addExpenseError && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
+                {addExpenseError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Who Paid? *</Label>
+              <Select value={expensePayer} onValueChange={setExpensePayer}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select who paid" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ME">
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">You (Trip Organizer)</span>
+                  </SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name} (Member)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {expensePayer !== "ME" && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  This will be tracked as a trip contribution by {members.find((m) => m.id === expensePayer)?.name} and won&apos;t affect your personal account balance.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category *</Label>
+              <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {expenseCategories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="expense-amount">Amount (₹) *</Label>
+                <Input
+                  id="expense-amount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expense-date">Date *</Label>
+                <Input
+                  id="expense-date"
+                  name="date"
+                  type="date"
+                  defaultValue={todayStr}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expense-notes">Notes / Description</Label>
+              <Input
+                id="expense-notes"
+                name="notes"
+                placeholder="e.g., Dinner at hotel, Flight tickets, Taxi"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setAddExpenseDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || !expenseCategory}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Record Expense
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. Add Member Dialog */}
+      <Dialog open={addMemberDialogOpen} onOpenChange={setAddMemberDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-600" />
+              Add Trip Member
+            </DialogTitle>
+            <DialogDescription>
+              Add a companion or friend to this trip so you can log the expenses they paid.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddMember} className="space-y-4 pt-1">
+            {addMemberError && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
+                {addMemberError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="member-name">Member Name *</Label>
+              <Input
+                id="member-name"
+                name="name"
+                placeholder="e.g., Rahul, Priya, Alex"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-email">Email (Optional)</Label>
+              <Input
+                id="member-email"
+                name="email"
+                type="email"
+                placeholder="companion@example.com"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setAddMemberDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Add Member
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Delete Member Dialog */}
+      <AlertDialog open={deleteMemberDialogOpen} onOpenChange={setDeleteMemberDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {deletingMember?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove <strong>{deletingMember?.name}</strong> and all expenses logged under their name from this trip. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMember}
+              disabled={isSubmitting}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Remove Member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 4. Edit Member Expense Dialog */}
+      <Dialog open={editMemberExpenseDialogOpen} onOpenChange={setEditMemberExpenseDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-indigo-600" />
+              Edit Member Expense
+            </DialogTitle>
+            <DialogDescription>Update the details of this member expense.</DialogDescription>
+          </DialogHeader>
+
+          {editingMemberExpense && (
+            <form onSubmit={handleUpdateMemberExpense} className="space-y-4 pt-1">
+              {editExpenseError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
+                  {editExpenseError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Member *</Label>
+                <Select value={editExpensePayer} onValueChange={setEditExpensePayer}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Select value={editExpenseCategory} onValueChange={setEditExpenseCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-amount">Amount (₹) *</Label>
+                  <Input
+                    id="edit-amount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    defaultValue={editingMemberExpense.amount}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-date">Date *</Label>
+                  <Input
+                    id="edit-date"
+                    name="date"
+                    type="date"
+                    defaultValue={formatDateForInput(new Date(editingMemberExpense.date))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-notes">Notes / Description</Label>
+                <Input
+                  id="edit-notes"
+                  name="notes"
+                  defaultValue={editingMemberExpense.notes || ""}
+                />
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditMemberExpenseDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white">
+                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* 5. Delete Member Expense Dialog */}
+      <AlertDialog open={deleteMemberExpenseDialogOpen} onOpenChange={setDeleteMemberExpenseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Member Expense?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this expense of{" "}
+              <strong>{deletingMemberExpense ? formatCurrency(deletingMemberExpense.amount) : ""}</strong> paid by{" "}
+              <strong>{deletingMemberExpense?.member.name}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMemberExpense}
+              disabled={isSubmitting}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete Expense
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 6. Edit Trip Group Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-5 w-5 text-violet-500" />
+              <Pencil className="h-5 w-5 text-indigo-600" />
               Edit Trip Group
             </DialogTitle>
             <DialogDescription>Update the group details.</DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleEdit} className="space-y-4">
+          <form onSubmit={handleEditTrip} className="space-y-4">
             {editError && (
               <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm dark:bg-rose-500/10 dark:border-rose-500/20 dark:text-rose-400">
                 {editError}
@@ -755,50 +1623,50 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
         </DialogContent>
       </Dialog>
 
-      {/* Delete Group Dialog */}
+      {/* 7. Delete Group Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete &quot;{tripGroup.name}&quot;?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete the group and unlink all {tripGroup.transactions.length} transactions. The transactions will not be deleted.
+              This will delete the group. Personal transactions will remain in your ledger (unlinked), but member records and member expenses for this trip will be removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <AlertDialogAction onClick={handleDeleteTrip} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Delete Group
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Remove Transaction Dialog */}
+      {/* 8. Remove Personal Transaction Dialog */}
       <AlertDialog open={removeTxDialogOpen} onOpenChange={setRemoveTxDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Transaction?</AlertDialogTitle>
+            <AlertDialogTitle>Unlink Transaction from Group?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will unlink the transaction ({removingTx ? formatCurrency(removingTx.amount) : ""} - {removingTx?.category.name}) from this group. The transaction itself will remain in your ledger.
+              This will unlink the transaction ({removingTx ? formatCurrency(removingTx.amount) : ""} - {removingTx?.category.name}) from this group. The transaction itself will safely remain in your personal ledger.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveTransaction} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Remove
+            <AlertDialogAction onClick={handleRemovePersonalTransaction} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Unlink
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Budget Dialog */}
+      {/* 9. Add Budget Dialog */}
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-violet-500" />
+              <Target className="h-5 w-5 text-indigo-600" />
               Add Category Budget
             </DialogTitle>
             <DialogDescription>
@@ -850,7 +1718,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
         </DialogContent>
       </Dialog>
 
-      {/* Delete Budget Dialog */}
+      {/* 10. Delete Budget Dialog */}
       <AlertDialog open={deleteBudgetDialogOpen} onOpenChange={setDeleteBudgetDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -862,7 +1730,7 @@ export function TripGroupDetail({ tripGroup, categories }: TripGroupDetailProps)
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteBudget} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Remove Budget
             </AlertDialogAction>
           </AlertDialogFooter>

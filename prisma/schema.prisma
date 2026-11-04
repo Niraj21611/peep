@@ -59,6 +59,7 @@ model Category {
   recurringTransactions RecurringTransaction[]
   templates             TransactionTemplate[]
   tripGroupBudgets      TripGroupBudget[]
+  tripMemberExpenses    TripMemberExpense[]
 
   @@unique([userId, name])
   @@index([userId, type])
@@ -158,8 +159,10 @@ model TripGroup {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  transactions Transaction[]
-  budgets      TripGroupBudget[]
+  transactions   Transaction[]
+  budgets        TripGroupBudget[]
+  members        TripGroupMember[]
+  memberExpenses TripMemberExpense[]
 
   @@index([userId])
   @@unique([userId, name])
@@ -177,4 +180,38 @@ model TripGroupBudget {
 
   @@unique([tripGroupId, categoryId])
   @@index([tripGroupId])
+}
+
+model TripGroupMember {
+  id          String              @id @default(auto()) @map("_id") @db.ObjectId
+  tripGroupId String              @db.ObjectId
+  tripGroup   TripGroup           @relation(fields: [tripGroupId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  expenses    TripMemberExpense[]
+
+  @@unique([tripGroupId, name])
+  @@index([tripGroupId])
+}
+
+model TripMemberExpense {
+  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  tripGroupId String          @db.ObjectId
+  tripGroup   TripGroup       @relation(fields: [tripGroupId], references: [id], onDelete: Cascade)
+  memberId    String          @db.ObjectId
+  member      TripGroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  categoryId  String          @db.ObjectId
+  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount      Float
+  date        DateTime
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([tripGroupId])
+  @@index([memberId])
+  @@index([categoryId])
 }

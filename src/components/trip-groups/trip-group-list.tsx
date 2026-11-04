@@ -91,19 +91,33 @@ export function TripGroupList({ tripGroups }: TripGroupListProps) {
 
   const getGroupStats = (group: TripGroupWithDetails) => {
     let totalIncome = 0;
-    let totalExpense = 0;
+    let myExpense = 0;
 
     for (const tx of group.transactions) {
       if (tx.type === TransactionType.INCOME) {
         totalIncome += tx.amount;
       } else {
-        totalExpense += tx.amount;
+        myExpense += tx.amount;
       }
     }
 
+    const memberExpenseTotal =
+      group.memberExpenses?.reduce((sum, e) => sum + e.amount, 0) || 0;
+    const totalExpense = myExpense + memberExpenseTotal;
     const totalBudget = group.budgets.reduce((sum, b) => sum + b.amount, 0);
+    const transactionCount =
+      group.transactions.length + (group.memberExpenses?.length || 0);
+    const memberCount = group.members?.length || 0;
 
-    return { totalIncome, totalExpense, totalBudget, transactionCount: group.transactions.length };
+    return {
+      totalIncome,
+      totalExpense,
+      myExpense,
+      memberExpenseTotal,
+      totalBudget,
+      transactionCount,
+      memberCount,
+    };
   };
 
   return (
@@ -198,6 +212,11 @@ export function TripGroupList({ tripGroups }: TripGroupListProps) {
                         <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Expense</span>
                       </div>
                       <p className="text-sm font-bold text-rose-700 dark:text-rose-300">{formatCurrency(stats.totalExpense)}</p>
+                      {stats.memberExpenseTotal > 0 && (
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                          Mine: {formatCurrency(stats.myExpense)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -205,7 +224,10 @@ export function TripGroupList({ tripGroups }: TripGroupListProps) {
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-1.5">
                       <Receipt className="h-3.5 w-3.5 text-slate-400" />
-                      <span className="text-xs font-medium text-slate-500">{stats.transactionCount} transactions</span>
+                      <span className="text-xs font-medium text-slate-500">
+                        {stats.memberCount > 0 ? `${stats.memberCount + 1} people • ` : ""}
+                        {stats.transactionCount} transactions
+                      </span>
                     </div>
                     {stats.totalBudget > 0 && (
                       <Badge

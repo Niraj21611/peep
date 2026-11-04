@@ -29,6 +29,12 @@ export async function getTripGroupsByUserId(userId: string) {
       budgets: {
         include: { category: true },
       },
+      members: {
+        include: { expenses: true },
+      },
+      memberExpenses: {
+        include: { member: true, category: true },
+      },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -47,6 +53,14 @@ export async function getTripGroupById(id: string, userId: string) {
       },
       budgets: {
         include: { category: true },
+      },
+      members: {
+        include: { expenses: true },
+        orderBy: { name: "asc" },
+      },
+      memberExpenses: {
+        include: { member: true, category: true },
+        orderBy: { date: "desc" },
       },
     },
   });
@@ -70,6 +84,12 @@ export async function createTripGroup(input: CreateTripGroupInput) {
       },
       budgets: {
         include: { category: true },
+      },
+      members: {
+        include: { expenses: true },
+      },
+      memberExpenses: {
+        include: { member: true, category: true },
       },
     },
   });
@@ -107,6 +127,12 @@ export async function updateTripGroup(
       },
       budgets: {
         include: { category: true },
+      },
+      members: {
+        include: { expenses: true },
+      },
+      memberExpenses: {
+        include: { member: true, category: true },
       },
     },
   });
@@ -259,5 +285,209 @@ export async function getTripGroupsListByUserId(userId: string) {
       },
     },
     orderBy: { name: "asc" },
+  });
+}
+
+/**
+ * Add a member to a trip group
+ */
+export async function addTripGroupMember(
+  tripGroupId: string,
+  name: string,
+  email: string | undefined,
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    throw new Error("Member name cannot be empty.");
+  }
+
+  return prisma.tripGroupMember.create({
+    data: {
+      tripGroupId,
+      name: trimmedName,
+      email: email?.trim() || null,
+    },
+    include: { expenses: true },
+  });
+}
+
+/**
+ * Remove a member from a trip group
+ */
+export async function deleteTripGroupMember(
+  memberId: string,
+  tripGroupId: string,
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  return prisma.tripGroupMember.delete({
+    where: { id: memberId },
+  });
+}
+
+/**
+ * Add an expense paid by an added member
+ */
+export async function createTripMemberExpense(
+  input: {
+    tripGroupId: string;
+    memberId: string;
+    categoryId: string;
+    amount: number;
+    date: Date;
+    notes?: string;
+  },
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: input.tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  const member = await prisma.tripGroupMember.findFirst({
+    where: { id: input.memberId, tripGroupId: input.tripGroupId },
+  });
+
+  if (!member) {
+    throw new Error("Trip member not found.");
+  }
+
+  return prisma.tripMemberExpense.create({
+    data: {
+      tripGroupId: input.tripGroupId,
+      memberId: input.memberId,
+      categoryId: input.categoryId,
+      amount: roundMoney(input.amount),
+      date: input.date,
+      notes: input.notes?.trim() || null,
+    },
+    include: {
+      member: true,
+      category: true,
+    },
+  });
+}
+
+/**
+ * Update an expense paid by an added member
+ */
+export async function updateTripMemberExpense(
+  id: string,
+  tripGroupId: string,
+  input: {
+    memberId?: string;
+    categoryId?: string;
+    amount?: number;
+    date?: Date;
+    notes?: string;
+  },
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  const existing = await prisma.tripMemberExpense.findFirst({
+    where: { id, tripGroupId },
+  });
+
+  if (!existing) {
+    throw new Error("Trip expense not found.");
+  }
+
+  return prisma.tripMemberExpense.update({
+    where: { id },
+    data: {
+      ...(input.memberId ? { memberId: input.memberId } : {}),
+      ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+      ...(input.amount !== undefined ? { amount: roundMoney(input.amount) } : {}),
+      ...(input.date ? { date: input.date } : {}),
+      ...(input.notes !== undefined ? { notes: input.notes.trim() || null } : {}),
+    },
+    include: {
+      member: true,
+      category: true,
+    },
+  });
+}
+
+/**
+ * Delete an expense paid by an added member
+ */
+export async function deleteTripMemberExpense(
+  id: string,
+  tripGroupId: string,
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  return prisma.tripMemberExpense.delete({
+    where: { id },
+  });
+}
+
+/**
+ * Create a personal transaction for the trip directly from the trip page
+ */
+export async function createTripPersonalTransaction(
+  input: {
+    tripGroupId: string;
+    categoryId: string;
+    amount: number;
+    date: Date;
+    notes?: string;
+  },
+  userId: string
+) {
+  const tripGroup = await prisma.tripGroup.findFirst({
+    where: { id: input.tripGroupId, userId },
+  });
+
+  if (!tripGroup) {
+    throw new Error("Trip group not found or unauthorized access.");
+  }
+
+  return prisma.transaction.create({
+    data: {
+      userId,
+      tripGroupId: input.tripGroupId,
+      categoryId: input.categoryId,
+      amount: roundMoney(input.amount),
+      date: input.date,
+      type: "EXPENSE",
+      notes: input.notes?.trim() || null,
+    },
+    include: {
+      category: true,
+    },
   });
 }

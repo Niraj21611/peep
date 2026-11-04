@@ -11,6 +11,12 @@ import {
   removeTransactionFromTripGroup,
   upsertTripGroupBudget,
   deleteTripGroupBudget,
+  addTripGroupMember,
+  deleteTripGroupMember,
+  createTripMemberExpense,
+  updateTripMemberExpense,
+  deleteTripMemberExpense,
+  createTripPersonalTransaction,
 } from "@/lib/db/trip-groups";
 
 export async function createTripGroupAction(
@@ -274,6 +280,244 @@ export async function deleteTripGroupBudgetAction(
         error instanceof Error
           ? error.message
           : "Failed to delete budget entry.",
+    };
+  }
+}
+
+export async function addTripGroupMemberAction(
+  tripGroupId: string,
+  formData: FormData
+): Promise<ActionResponse> {
+  try {
+    const user = await requireUser();
+
+    const name = formData.get("name")?.toString();
+    const email = formData.get("email")?.toString();
+
+    if (!name || name.trim().length === 0) {
+      return {
+        success: false,
+        message: "Member name is required.",
+        errors: { name: ["Please enter a name for the member."] },
+      };
+    }
+
+    const member = await addTripGroupMember(
+      tripGroupId,
+      name,
+      email,
+      user.id
+    );
+
+    revalidatePath("/trip-groups");
+    revalidatePath(`/trip-groups/${tripGroupId}`);
+
+    return {
+      success: true,
+      message: `Member "${member.name}" added to the trip.`,
+      data: member,
+    };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to add member.";
+    if (msg.includes("Unique constraint")) {
+      return {
+        success: false,
+        message: "A member with this name is already in this trip.",
+        errors: { name: ["A member with this name already exists in this trip."] },
+      };
+    }
+    return { success: false, message: msg };
+  }
+}
+
+export async function deleteTripGroupMemberAction(
+  memberId: string,
+  tripGroupId: string
+): Promise<ActionResponse> {
+  try {
+    const user = await requireUser();
+
+    await deleteTripGroupMember(memberId, tripGroupId, user.id);
+
+    revalidatePath("/trip-groups");
+    revalidatePath(`/trip-groups/${tripGroupId}`);
+
+    return {
+      success: true,
+      message: "Member and their trip expenses removed.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to remove member.",
+    };
+  }
+}
+
+export async function createTripExpenseAction(
+  tripGroupId: string,
+  formData: FormData
+): Promise<ActionResponse> {
+  try {
+    const user = await requireUser();
+
+    const payer = formData.get("payer")?.toString(); // "ME" or memberId
+    const categoryId = formData.get("categoryId")?.toString();
+    const amountStr = formData.get("amount")?.toString();
+    const dateStr = formData.get("date")?.toString();
+    const notes = formData.get("notes")?.toString();
+
+    if (!payer) {
+      return {
+        success: false,
+        message: "Please select who paid for this expense.",
+        errors: { payer: ["Select who paid."] },
+      };
+    }
+
+    if (!categoryId) {
+      return {
+        success: false,
+        message: "Category is required.",
+        errors: { categoryId: ["Select a category."] },
+      };
+    }
+
+    const amount = parseFloat(amountStr || "0");
+    if (isNaN(amount) || amount <= 0) {
+      return {
+        success: false,
+        message: "Please enter a valid amount greater than 0.",
+        errors: { amount: ["Enter a valid amount."] },
+      };
+    }
+
+    const date = dateStr ? new Date(dateStr) : new Date();
+
+    if (payer === "ME") {
+      // Create user's personal transaction linked to this trip
+      const tx = await createTripPersonalTransaction(
+        {
+          tripGroupId,
+          categoryId,
+          amount,
+          date,
+          notes,
+        },
+        user.id
+      );
+
+      revalidatePath("/trip-groups");
+      revalidatePath(`/trip-groups/${tripGroupId}`);
+      revalidatePath("/transactions");
+      revalidatePath("/dashboard");
+
+      return {
+        success: true,
+        message: `Your expense of ₹${amount.toFixed(2)} recorded for this trip.`,
+        data: tx,
+      };
+    } else {
+      // Create member expense (isolated from personal ledger)
+      const memberExpense = await createTripMemberExpense(
+        {
+          tripGroupId,
+          memberId: payer,
+          categoryId,
+          amount,
+          date,
+          notes,
+        },
+        user.id
+      );
+
+      revalidatePath("/trip-groups");
+      revalidatePath(`/trip-groups/${tripGroupId}`);
+
+      return {
+        success: true,
+        message: `Expense of ₹${amount.toFixed(2)} recorded for ${memberExpense.member.name}.`,
+        data: memberExpense,
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to record expense.",
+    };
+  }
+}
+
+export async function updateTripMemberExpenseAction(
+  id: string,
+  tripGroupId: string,
+  formData: FormData
+): Promise<ActionResponse> {
+  try {
+    const user = await requireUser();
+
+    const memberId = formData.get("memberId")?.toString();
+    const categoryId = formData.get("categoryId")?.toString();
+    const amountStr = formData.get("amount")?.toString();
+    const dateStr = formData.get("date")?.toString();
+    const notes = formData.get("notes")?.toString();
+
+    const amount = amountStr ? parseFloat(amountStr) : undefined;
+    const date = dateStr ? new Date(dateStr) : undefined;
+
+    const updated = await updateTripMemberExpense(
+      id,
+      tripGroupId,
+      {
+        memberId,
+        categoryId,
+        amount,
+        date,
+        notes,
+      },
+      user.id
+    );
+
+    revalidatePath("/trip-groups");
+    revalidatePath(`/trip-groups/${tripGroupId}`);
+
+    return {
+      success: true,
+      message: "Member expense updated successfully.",
+      data: updated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to update expense.",
+    };
+  }
+}
+
+export async function deleteTripMemberExpenseAction(
+  id: string,
+  tripGroupId: string
+): Promise<ActionResponse> {
+  try {
+    const user = await requireUser();
+
+    await deleteTripMemberExpense(id, tripGroupId, user.id);
+
+    revalidatePath("/trip-groups");
+    revalidatePath(`/trip-groups/${tripGroupId}`);
+
+    return {
+      success: true,
+      message: "Member expense removed.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Failed to delete expense.",
     };
   }
 }
