@@ -81,7 +81,11 @@ export function BudgetFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-4 pt-2">
+        <form
+          key={`${categoryBudget.categoryId}-${targetMonth}`}
+          action={formAction}
+          className="space-y-4 pt-2"
+        >
           {state.message && !state.success && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

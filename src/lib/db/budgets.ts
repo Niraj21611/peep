@@ -38,8 +38,9 @@ export interface BudgetSummary {
  */
 export async function getBudgetsWithCalculations(userId: string, month: string) {
   const [yearStr, monthStr] = month.split("-");
-  const year = parseInt(yearStr || "2026", 10);
-  const monthIdx = parseInt(monthStr || "10", 10) - 1;
+  const now = new Date();
+  const year = parseInt(yearStr || "", 10) || now.getFullYear();
+  const monthIdx = (parseInt(monthStr || "", 10) || (now.getMonth() + 1)) - 1;
 
   const startDate = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0, 0));
   const endDate = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));

@@ -51,32 +51,42 @@ export function BudgetView({ month, categoryBudgets, summary }: BudgetViewProps)
   // Month Navigation
   const handlePrevMonth = () => {
     const [yStr, mStr] = month.split("-");
-    let year = parseInt(yStr || "2026", 10);
-    let m = parseInt(mStr || "10", 10) - 1;
+    const now = new Date();
+    let year = parseInt(yStr || "", 10) || now.getFullYear();
+    let m = (parseInt(mStr || "", 10) || (now.getMonth() + 1)) - 1;
     if (m < 1) {
       m = 12;
       year--;
     }
     const newMonth = `${year}-${String(m).padStart(2, "0")}`;
-    router.push(`/budgets?month=${newMonth}`);
+    router.push(`/budgets?month=${newMonth}`, { scroll: false });
   };
 
   const handleNextMonth = () => {
     const [yStr, mStr] = month.split("-");
-    let year = parseInt(yStr || "2026", 10);
-    let m = parseInt(mStr || "10", 10) + 1;
+    const now = new Date();
+    let year = parseInt(yStr || "", 10) || now.getFullYear();
+    let m = (parseInt(mStr || "", 10) || (now.getMonth() + 1)) + 1;
     if (m > 12) {
       m = 1;
       year++;
     }
     const newMonth = `${year}-${String(m).padStart(2, "0")}`;
-    router.push(`/budgets?month=${newMonth}`);
+    router.push(`/budgets?month=${newMonth}`, { scroll: false });
   };
 
   const handleMonthInputChange = (val: string) => {
-    if (val) {
-      router.push(`/budgets?month=${val}`);
+    if (val && /^\d{4}-\d{2}$/.test(val)) {
+      router.push(`/budgets?month=${val}`, { scroll: false });
     }
+  };
+
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const isCurrentMonth = month === currentMonthStr;
+
+  const handleCurrentMonth = () => {
+    router.push(`/budgets?month=${currentMonthStr}`, { scroll: false });
   };
 
   const handleOpenSet = (item: CalculatedCategoryBudget) => {
@@ -135,11 +145,12 @@ export function BudgetView({ month, categoryBudgets, summary }: BudgetViewProps)
 
   // Format Display Month e.g., "October 2026"
   const [yStr, mStr] = month.split("-");
-  const displayMonthStr = new Date(
-    parseInt(yStr || "2026", 10),
-    parseInt(mStr || "10", 10) - 1,
-    1
-  ).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const parsedYear = parseInt(yStr || "", 10) || now.getFullYear();
+  const parsedMonthIdx = (parseInt(mStr || "", 10) || (now.getMonth() + 1)) - 1;
+  const displayMonthStr = new Date(parsedYear, parsedMonthIdx, 1, 12, 0, 0).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="space-y-6">
@@ -156,6 +167,18 @@ export function BudgetView({ month, categoryBudgets, summary }: BudgetViewProps)
         </div>
 
         <div className="flex items-center gap-2">
+          {!isCurrentMonth && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCurrentMonth}
+              className="text-xs h-9"
+              title="Return to current month"
+            >
+              Current Month
+            </Button>
+          )}
+
           <Button variant="outline" size="icon" onClick={handlePrevMonth} title="Previous Month">
             <ChevronLeft className="h-4 w-4" />
           </Button>

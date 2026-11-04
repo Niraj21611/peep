@@ -279,8 +279,9 @@ export async function getDashboardBudgetOverview(
   month: string
 ): Promise<DashboardBudgetSummary> {
   const [yStr, mStr] = month.split("-");
-  const year = parseInt(yStr || "2026", 10);
-  const monthIdx = parseInt(mStr || "10", 10) - 1;
+  const now = new Date();
+  const year = parseInt(yStr || "", 10) || now.getFullYear();
+  const monthIdx = (parseInt(mStr || "", 10) || (now.getMonth() + 1)) - 1;
 
   const startDate = new Date(Date.UTC(year, monthIdx, 1, 0, 0, 0, 0));
   const endDate = new Date(Date.UTC(year, monthIdx + 1, 0, 23, 59, 59, 999));
